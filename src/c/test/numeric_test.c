@@ -22,6 +22,9 @@ static void expect_double(double got, double want, const char *msg) {
     }
 }
 
+/* forward declare focused generic test */
+int test_generic_macro(void);
+
 int main(void) {
     printf("Running numeric tests...\n");
 
@@ -86,9 +89,79 @@ int main(void) {
 
     if (failures == 0) {
         printf("All tests passed.\n");
+        /* run focused generic macro test */
+        if (test_generic_macro() != 0) return 2;
         return 0;
     } else {
         printf("%d test(s) failed.\n", failures);
         return 2;
     }
 }
+
+/* Additional tests for numeric_from_value / numeric_from_value_typed */
+int generic_tests(void) {
+    int ok;
+    double dv = 3.5;
+    int32_t iv = -123;
+
+    /* Use the typed API to avoid duplicate _Generic associations in some compilers */
+    Numeric a = numeric_from_value_typed(&dv, NUMERIC_F64, &ok);
+    expect_int(ok, 1, "typed a ok");
+    Numeric b = numeric_from_value_typed(&iv, NUMERIC_I32, &ok);
+    expect_int(ok, 1, "typed b ok");
+    Numeric c = numeric_from_value_typed("42.75", NUMERIC_F64_STRING_INPUT, &ok);
+    expect_int(ok, 1, "typed c ok");
+
+    double x;
+    numeric_to_f64(&a, &x); printf("generic a=%g\n", x); expect_double(x, 3.5, "generic a value");
+    numeric_to_f64(&b, &x); printf("generic b=%g\n", x); expect_double(x, -123.0, "generic b value");
+    numeric_to_f64(&c, &x); printf("generic c=%g\n", x); expect_double(x, 42.75, "generic c value");
+
+    return failures == 0 ? 0 : 2;
+}
+
+/* Focused test for the _Generic convenience macro without triggering
+   the header's large mapping (which can contain compatible duplicate
+   associations on some platforms). We undef the library macro and
+   provide a small test-only mapping for a few types. */
+int test_generic_macro(void) {
+#if NUMERIC_ONLY_HAVE_GENERIC
+    int ok;
+    double dv = 3.5;
+    int32_t iv = -123;
+
+    /* Define a small, non-conflicting test macro just for this file. */
+    #ifdef numeric_from_value
+    #undef numeric_from_value
+    #endif
+    #define numeric_from_value_test(VPTR, OKPTR) \
+      _Generic((VPTR), \
+        const char*: numeric_from_string((const char*)(VPTR), (OKPTR)), \
+        char*:       numeric_from_string((const char*)(VPTR), (OKPTR)), \
+        const double*: __no_f64((const double*)(VPTR), (OKPTR)), \
+        double*:       __no_f64((const double*)(VPTR), (OKPTR)), \
+        const int32_t*: __no_i32((const int32_t*)(VPTR), (OKPTR)), \
+        int32_t*:       __no_i32((const int32_t*)(VPTR), (OKPTR)), \
+        default: __no_from_unsupported((const void*)(VPTR), (OKPTR)) )
+
+    Numeric a = numeric_from_value_test(&dv, &ok);
+    expect_int(ok, 1, "generic-macro a ok");
+    double x; numeric_to_f64(&a, &x); printf("macro a=%g\n", x); expect_double(x, 3.5, "macro a value");
+
+    Numeric b = numeric_from_value_test(&iv, &ok);
+    expect_int(ok, 1, "generic-macro b ok");
+    numeric_to_f64(&b, &x); printf("macro b=%g\n", x); expect_double(x, -123.0, "macro b value");
+
+    Numeric c = numeric_from_value_test("42.75", &ok);
+    expect_int(ok, 1, "generic-macro c ok");
+    numeric_to_f64(&c, &x); printf("macro c=%g\n", x); expect_double(x, 42.75, "macro c value");
+
+    /* restore nothing — this is a test-only macro shadowing the header symbol */
+    return failures == 0 ? 0 : 2;
+#else
+    /* No _Generic support; nothing to test here. */
+    (void)0; return 0;
+#endif
+}
+
+

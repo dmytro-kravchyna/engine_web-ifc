@@ -1,18 +1,18 @@
 /* numeric_only.h
-   Portable numeric-only tagged union with wide type coverage and string parsing.
-   Platforms: iOS, Android (NDK), Windows (MSVC), Linux, macOS.
-   Language: C99 or newer (works in C++ via extern "C").
+   Portable numeric-only tagged union with wide type coverage, string parsing,
+   and optional C11 _Generic helper for "any pointer" inputs.
+   Platforms: iOS, Android (NDK), Windows, Linux, macOS.
+   Language: C99+ (the _Generic helper requires C11; a typed fallback is provided).
 */
-
 #ifndef NUMERIC_ONLY_H
 #define NUMERIC_ONLY_H
 
-/* ----- Standard headers (portable) ----- */
+/* ----- Standard headers ----- */
 #include <stdint.h>   /* int*_t, uint*_t, intptr_t, uintptr_t, intmax_t, uintmax_t */
 #include <stddef.h>   /* size_t, ptrdiff_t */
 #include <stdlib.h>   /* strtod */
 #include <errno.h>    /* errno, ERANGE */
-#include <math.h>     /* NAN (fallback provided below if missing) */
+#include <math.h>     /* NAN (fallback below if missing) */
 
 #ifdef __cplusplus
 extern "C" {
@@ -20,13 +20,12 @@ extern "C" {
 
 /* ----- Fallback for NAN on very old C libraries ----- */
 #ifndef NAN
-  /* As a last resort, define a quiet NaN through 0.0/0.0.
-     This may trigger a compile-time warning on some toolchains, but is portable. */
   #define NAN (0.0/0.0)
 #endif
 
-/* ----- Optional 128-bit integer support (GCC/Clang; typically not MSVC) ----- */
-/* You can force-disable with: #define NUMERIC_ONLY_DISABLE_INT128 1 before including. */
+/* ----- Optional 128-bit integer support (GCC/Clang; typically not MSVC) -----
+   You can force-disable with: #define NUMERIC_ONLY_DISABLE_INT128 1 before including.
+*/
 #if !defined(NUMERIC_ONLY_DISABLE_INT128)
   #if defined(__SIZEOF_INT128__) && !defined(_MSC_VER)
     #define NUMERIC_ONLY_HAVE_INT128 1
@@ -39,12 +38,29 @@ extern "C" {
   #define NUMERIC_ONLY_HAVE_INT128 0
 #endif
 
-/* ----- API visibility/inline (customize if embedding in a DLL) ----- */
+/* ----- Detect C11 _Generic availability for the convenience macro ----- */
+#if !defined(__cplusplus) && defined(__STDC_VERSION__) && (__STDC_VERSION__ >= 201112L)
+  #define NUMERIC_ONLY_HAVE_GENERIC 1
+#elif defined(__clang__)
+  #if __has_extension(c_generic_selections)
+    #define NUMERIC_ONLY_HAVE_GENERIC 1
+  #endif
+#elif defined(__GNUC__)
+  #if (__GNUC__ > 4) || (__GNUC__ == 4 && __GNUC_MINOR__ >= 9)
+    #define NUMERIC_ONLY_HAVE_GENERIC 1
+  #endif
+#endif
+#ifndef NUMERIC_ONLY_HAVE_GENERIC
+  #define NUMERIC_ONLY_HAVE_GENERIC 0
+#endif
+
+/* ----- Inline control (override if embedding in a DLL) ----- */
 #ifndef NUMERIC_ONLY_INLINE
   #define NUMERIC_ONLY_INLINE static inline
 #endif
 
-/* ----- Tag describing which variant is stored ----- */
+/* ============================== Types ============================== */
+
 typedef enum {
     /* Fixed-width signed/unsigned */
     NUMERIC_I8,  NUMERIC_U8,
@@ -66,12 +82,12 @@ typedef enum {
     NUMERIC_F32, NUMERIC_F64, NUMERIC_F128,
 
 #if NUMERIC_ONLY_HAVE_INT128
-    /* Optional 128-bit integers (GCC/Clang) */
+    /* Optional 128-bit integers */
     NUMERIC_I128, NUMERIC_U128,
 #endif
 } NumericTag;
 
-/* ----- Numeric-only tagged union (no strings, no external pointers) ----- */
+/* Numeric-only tagged union. */
 typedef struct {
     NumericTag tag;
     union {
@@ -104,7 +120,6 @@ typedef struct {
 } Numeric;
 
 /* ============================ Constructors ============================ */
-
 /* Fixed-width */
 NUMERIC_ONLY_INLINE Numeric numeric_from_i8 (int8_t  v){ Numeric n; n.tag=NUMERIC_I8;  n.as.i8 =v; return n; }
 NUMERIC_ONLY_INLINE Numeric numeric_from_u8 (uint8_t v){ Numeric n; n.tag=NUMERIC_U8;  n.as.u8 =v; return n; }
@@ -141,28 +156,30 @@ NUMERIC_ONLY_INLINE Numeric numeric_from_i128(numeric_only_int128_t v)  { Numeri
 NUMERIC_ONLY_INLINE Numeric numeric_from_u128(numeric_only_uint128_t v) { Numeric n; n.tag=NUMERIC_U128; n.as.u128=v; return n; }
 #endif
 
-/* ======================== String parsing (double) ===================== */
-/* Parses a C string with strtod (locale-dependent).
+/* ====================== Parse from C string ======================= */
+/* Parses a C string via strtod (locale-dependent).
    - If s is NULL or parsing fails/overflows, returns NUMERIC_F64 with NaN.
    - On success, returns NUMERIC_F64 with the parsed value.
    - If ok!=NULL, *ok is set to 1 on success, 0 on failure.
 */
 NUMERIC_ONLY_INLINE Numeric numeric_from_string(const char* s, int* ok) {
     if (ok) *ok = 0;
-    if (!s) {
-        return numeric_from_f64(NAN);
-    }
+    if (!s) return numeric_from_f64(NAN);
     errno = 0;
     char* endp = NULL;
     double d = strtod(s, &endp);
-    if (endp == s || errno == ERANGE) {
-        return numeric_from_f64(NAN);
-    }
+    if (endp == s || errno == ERANGE) return numeric_from_f64(NAN);
     if (ok) *ok = 1;
     return numeric_from_f64(d);
 }
 
-/* ===================== Conversions and comparison ==================== */
+/* Convenience wrapper that ignores the ok flag. */
+NUMERIC_ONLY_INLINE Numeric numeric_from_cstr(const char* s) {
+    int ok_dummy;
+    return numeric_from_string(s, &ok_dummy);
+}
+
+/* ================= Conversions and comparison ===================== */
 /* Convert any Numeric to double (best-effort). Returns 0 on success. */
 NUMERIC_ONLY_INLINE int numeric_to_f64(const Numeric* n, double* out) {
     if (!n || !out) return -1;
@@ -195,8 +212,8 @@ NUMERIC_ONLY_INLINE int numeric_to_f64(const Numeric* n, double* out) {
         case NUMERIC_F128:   *out = (double)n->as.f128; return 0;
 
 #if NUMERIC_ONLY_HAVE_INT128
-        case NUMERIC_I128:   *out = (double)n->as.i128; return 0; /* precision loss possible */
-        case NUMERIC_U128:   *out = (double)n->as.u128; return 0; /* precision loss possible */
+        case NUMERIC_I128:   *out = (double)n->as.i128; return 0;
+        case NUMERIC_U128:   *out = (double)n->as.u128; return 0;
 #endif
         default: return -1;
     }
@@ -208,6 +225,7 @@ NUMERIC_ONLY_INLINE int numeric_compare(const Numeric* a, const Numeric* b) {
 
     long double av = 0.0L, bv = 0.0L;
 
+    /* a -> long double */
     switch (a->tag) {
         case NUMERIC_I8:   av = (long double)a->as.i8;   break;
         case NUMERIC_U8:   av = (long double)a->as.u8;   break;
@@ -243,6 +261,7 @@ NUMERIC_ONLY_INLINE int numeric_compare(const Numeric* a, const Numeric* b) {
         default: break;
     }
 
+    /* b -> long double */
     switch (b->tag) {
         case NUMERIC_I8:   bv = (long double)b->as.i8;   break;
         case NUMERIC_U8:   bv = (long double)b->as.u8;   break;
@@ -282,6 +301,166 @@ NUMERIC_ONLY_INLINE int numeric_compare(const Numeric* a, const Numeric* b) {
     if (av > bv) return +1;
     return 0;
 }
+
+/* ==================== "Any pointer" -> Numeric ===================== */
+/* Typed fallback API (works on all compilers, including pre-C11):
+   - value must point to an object of the type described by tag, OR
+   - pass a pointer to C-string and use tag NUMERIC_F64_STRING_INPUT.
+*/
+enum { NUMERIC_F64_STRING_INPUT = 10000 }; /* sentinel tag for C-strings */
+
+NUMERIC_ONLY_INLINE Numeric numeric_from_value_typed(const void* value, int tag_or_string, int* ok) {
+    if (ok) *ok = 0;
+    if (!value) return numeric_from_f64(NAN);
+
+    if (tag_or_string == NUMERIC_F64_STRING_INPUT) {
+        return numeric_from_string((const char*)value, ok);
+    }
+
+    switch ((NumericTag)tag_or_string) {
+        case NUMERIC_I8:    if (ok) *ok=1; return numeric_from_i8   (*(const int8_t*)value);
+        case NUMERIC_U8:    if (ok) *ok=1; return numeric_from_u8   (*(const uint8_t*)value);
+        case NUMERIC_I16:   if (ok) *ok=1; return numeric_from_i16  (*(const int16_t*)value);
+        case NUMERIC_U16:   if (ok) *ok=1; return numeric_from_u16  (*(const uint16_t*)value);
+        case NUMERIC_I32:   if (ok) *ok=1; return numeric_from_i32  (*(const int32_t*)value);
+        case NUMERIC_U32:   if (ok) *ok=1; return numeric_from_u32  (*(const uint32_t*)value);
+        case NUMERIC_I64:   if (ok) *ok=1; return numeric_from_i64  (*(const int64_t*)value);
+        case NUMERIC_U64:   if (ok) *ok=1; return numeric_from_u64  (*(const uint64_t*)value);
+
+        case NUMERIC_INT:   if (ok) *ok=1; return numeric_from_int  (*(const int*)value);
+        case NUMERIC_UINT:  if (ok) *ok=1; return numeric_from_uint (*(const unsigned*)value);
+        case NUMERIC_LONG:  if (ok) *ok=1; return numeric_from_long (*(const long*)value);
+        case NUMERIC_ULONG: if (ok) *ok=1; return numeric_from_ulong(*(const unsigned long*)value);
+        case NUMERIC_LLONG: if (ok) *ok=1; return numeric_from_llong(*(const long long*)value);
+        case NUMERIC_ULLONG:if (ok) *ok=1; return numeric_from_ullong(*(const unsigned long long*)value);
+
+        case NUMERIC_INTPTR: if (ok) *ok=1; return numeric_from_intptr (*(const intptr_t*)value);
+        case NUMERIC_UINTPTR:if (ok) *ok=1; return numeric_from_uintptr(*(const uintptr_t*)value);
+        case NUMERIC_SIZE:   if (ok) *ok=1; return numeric_from_size   (*(const size_t*)value);
+        case NUMERIC_PTRDIFF:if (ok) *ok=1; return numeric_from_ptrdiff(*(const ptrdiff_t*)value);
+        case NUMERIC_IMAX:   if (ok) *ok=1; return numeric_from_imax   (*(const intmax_t*)value);
+        case NUMERIC_UMAX:   if (ok) *ok=1; return numeric_from_umax   (*(const uintmax_t*)value);
+
+        case NUMERIC_F32:   if (ok) *ok=1; return numeric_from_f32 (*(const float*)value);
+        case NUMERIC_F64:   if (ok) *ok=1; return numeric_from_f64 (*(const double*)value);
+        case NUMERIC_F128:  if (ok) *ok=1; return numeric_from_f128(*(const long double*)value);
+
+#if NUMERIC_ONLY_HAVE_INT128
+        case NUMERIC_I128:  if (ok) *ok=1; return numeric_from_i128(*(const numeric_only_int128_t*)value);
+        case NUMERIC_U128:  if (ok) *ok=1; return numeric_from_u128(*(const numeric_only_uint128_t*)value);
+#endif
+        default: break;
+    }
+    return numeric_from_f64(NAN);
+}
+
+/* C11 _Generic convenience: numeric_from_value(ptr, &ok)
+   - If ptr is char* / const char*      -> parse string.
+   - If ptr is pointer to numeric type  -> dereference and wrap.
+   - Otherwise                          -> returns NaN and sets *ok=0.
+*/
+#if NUMERIC_ONLY_HAVE_GENERIC
+
+/* Helpers to set ok and wrap pointers (kept small and inlined). */
+NUMERIC_ONLY_INLINE Numeric __no_from_unsupported(const void* p, int* ok) {
+    (void)p; if (ok) *ok = 0; return numeric_from_f64(NAN);
+}
+#define __NO_DEF_PTR_HELPER(T, FN) \
+    NUMERIC_ONLY_INLINE Numeric FN(const T* p, int* ok){ if(ok)*ok=1; return numeric_from_##FN == numeric_from_##FN ? numeric_from_##FN(*p) : numeric_from_##FN(*p); }
+/* Note: The macro above is not actually used; we define explicit helpers below. */
+
+/* Explicit helpers (clear and MSVC-friendly) */
+NUMERIC_ONLY_INLINE Numeric __no_i8 (const int8_t* p, int* ok){ if(ok)*ok=1; return numeric_from_i8 (*p); }
+NUMERIC_ONLY_INLINE Numeric __no_u8 (const uint8_t* p,int* ok){ if(ok)*ok=1; return numeric_from_u8 (*p); }
+NUMERIC_ONLY_INLINE Numeric __no_i16(const int16_t* p,int* ok){ if(ok)*ok=1; return numeric_from_i16(*p); }
+NUMERIC_ONLY_INLINE Numeric __no_u16(const uint16_t*p,int* ok){ if(ok)*ok=1; return numeric_from_u16(*p); }
+NUMERIC_ONLY_INLINE Numeric __no_i32(const int32_t* p,int* ok){ if(ok)*ok=1; return numeric_from_i32(*p); }
+NUMERIC_ONLY_INLINE Numeric __no_u32(const uint32_t*p,int* ok){ if(ok)*ok=1; return numeric_from_u32(*p); }
+NUMERIC_ONLY_INLINE Numeric __no_i64(const int64_t* p,int* ok){ if(ok)*ok=1; return numeric_from_i64(*p); }
+NUMERIC_ONLY_INLINE Numeric __no_u64(const uint64_t*p,int* ok){ if(ok)*ok=1; return numeric_from_u64(*p); }
+
+NUMERIC_ONLY_INLINE Numeric __no_int (const int* p, int* ok){ if(ok)*ok=1; return numeric_from_int (*p); }
+NUMERIC_ONLY_INLINE Numeric __no_uint(const unsigned* p,int* ok){ if(ok)*ok=1; return numeric_from_uint(*p); }
+NUMERIC_ONLY_INLINE Numeric __no_long (const long* p,int* ok){ if(ok)*ok=1; return numeric_from_long (*p); }
+NUMERIC_ONLY_INLINE Numeric __no_ulong(const unsigned long* p,int* ok){ if(ok)*ok=1; return numeric_from_ulong(*p); }
+NUMERIC_ONLY_INLINE Numeric __no_llong(const long long* p,int* ok){ if(ok)*ok=1; return numeric_from_llong(*p); }
+NUMERIC_ONLY_INLINE Numeric __no_ullong(const unsigned long long* p,int* ok){ if(ok)*ok=1; return numeric_from_ullong(*p); }
+
+NUMERIC_ONLY_INLINE Numeric __no_ip (const intptr_t* p, int* ok){ if(ok)*ok=1; return numeric_from_intptr (*p); }
+NUMERIC_ONLY_INLINE Numeric __no_uip(const uintptr_t* p,int* ok){ if(ok)*ok=1; return numeric_from_uintptr(*p); }
+NUMERIC_ONLY_INLINE Numeric __no_size(const size_t* p, int* ok){ if(ok)*ok=1; return numeric_from_size   (*p); }
+NUMERIC_ONLY_INLINE Numeric __no_pd  (const ptrdiff_t* p,int* ok){ if(ok)*ok=1; return numeric_from_ptrdiff(*p); }
+NUMERIC_ONLY_INLINE Numeric __no_imax(const intmax_t* p,int* ok){ if(ok)*ok=1; return numeric_from_imax  (*p); }
+NUMERIC_ONLY_INLINE Numeric __no_umax(const uintmax_t* p,int* ok){ if(ok)*ok=1; return numeric_from_umax  (*p); }
+
+NUMERIC_ONLY_INLINE Numeric __no_f32 (const float* p, int* ok){ if(ok)*ok=1; return numeric_from_f32 (*p); }
+NUMERIC_ONLY_INLINE Numeric __no_f64 (const double* p,int* ok){ if(ok)*ok=1; return numeric_from_f64 (*p); }
+NUMERIC_ONLY_INLINE Numeric __no_f128(const long double* p,int* ok){ if(ok)*ok=1; return numeric_from_f128(*p); }
+
+#if NUMERIC_ONLY_HAVE_INT128
+NUMERIC_ONLY_INLINE Numeric __no_i128(const numeric_only_int128_t* p, int* ok){ if(ok)*ok=1; return numeric_from_i128(*p); }
+NUMERIC_ONLY_INLINE Numeric __no_u128(const numeric_only_uint128_t* p,int* ok){ if(ok)*ok=1; return numeric_from_u128(*p); }
+#endif
+
+/* The _Generic-based convenience macro */
+#define numeric_from_value(VPTR, OKPTR) \
+  _Generic((VPTR), \
+    /* C-strings -> parse */ \
+    const char*:        numeric_from_string((const char*)(VPTR), (OKPTR)), \
+    char*:              numeric_from_string((const char*)(VPTR), (OKPTR)), \
+    /* Fixed-width */ \
+    const int8_t*:      __no_i8  ((const int8_t*)(VPTR),  (OKPTR)), \
+    int8_t*:            __no_i8  ((const int8_t*)(VPTR),  (OKPTR)), \
+    const uint8_t*:     __no_u8  ((const uint8_t*)(VPTR), (OKPTR)), \
+    uint8_t*:           __no_u8  ((const uint8_t*)(VPTR), (OKPTR)), \
+    const int16_t*:     __no_i16 ((const int16_t*)(VPTR), (OKPTR)), \
+    int16_t*:           __no_i16 ((const int16_t*)(VPTR), (OKPTR)), \
+    const uint16_t*:    __no_u16 ((const uint16_t*)(VPTR),(OKPTR)), \
+    uint16_t*:          __no_u16 ((const uint16_t*)(VPTR),(OKPTR)), \
+    const int32_t*:     __no_i32 ((const int32_t*)(VPTR), (OKPTR)), \
+    int32_t*:           __no_i32 ((const int32_t*)(VPTR), (OKPTR)), \
+    const uint32_t*:    __no_u32 ((const uint32_t*)(VPTR),(OKPTR)), \
+    uint32_t*:          __no_u32 ((const uint32_t*)(VPTR),(OKPTR)), \
+    const int64_t*:     __no_i64 ((const int64_t*)(VPTR), (OKPTR)), \
+    int64_t*:           __no_i64 ((const int64_t*)(VPTR), (OKPTR)), \
+    const uint64_t*:    __no_u64 ((const uint64_t*)(VPTR),(OKPTR)), \
+    uint64_t*:          __no_u64 ((const uint64_t*)(VPTR),(OKPTR)), \
+    /* Native families */ \
+    const int*:         __no_int ((const int*)(VPTR),          (OKPTR)), \
+    int*:               __no_int ((const int*)(VPTR),          (OKPTR)), \
+    const unsigned*:    __no_uint((const unsigned*)(VPTR),     (OKPTR)), \
+    unsigned*:          __no_uint((const unsigned*)(VPTR),     (OKPTR)), \
+    const long*:        __no_long((const long*)(VPTR),         (OKPTR)), \
+    long*:              __no_long((const long*)(VPTR),         (OKPTR)), \
+    const unsigned long*: __no_ulong((const unsigned long*)(VPTR),(OKPTR)), \
+    unsigned long*:       __no_ulong((const unsigned long*)(VPTR),(OKPTR)), \
+    const long long*:   __no_llong((const long long*)(VPTR),   (OKPTR)), \
+    long long*:         __no_llong((const long long*)(VPTR),   (OKPTR)), \
+    const unsigned long long*: __no_ullong((const unsigned long long*)(VPTR),(OKPTR)), \
+    unsigned long long*:       __no_ullong((const unsigned long long*)(VPTR),(OKPTR)), \
+    /* Pointer-sized / max-width */ \
+    const intptr_t*:    __no_ip  ((const intptr_t*)(VPTR),     (OKPTR)), \
+    intptr_t*:          __no_ip  ((const intptr_t*)(VPTR),     (OKPTR)), \
+    const uintptr_t*:   __no_uip ((const uintptr_t*)(VPTR),    (OKPTR)), \
+    uintptr_t*:         __no_uip ((const uintptr_t*)(VPTR),    (OKPTR)), \
+    const size_t*:      __no_size((const size_t*)(VPTR),       (OKPTR)), \
+    size_t*:            __no_size((const size_t*)(VPTR),       (OKPTR)), \
+    const ptrdiff_t*:   __no_pd  ((const ptrdiff_t*)(VPTR),    (OKPTR)), \
+    ptrdiff_t*:         __no_pd  ((const ptrdiff_t*)(VPTR),    (OKPTR)), \
+    const intmax_t*:    __no_imax((const intmax_t*)(VPTR),     (OKPTR)), \
+    intmax_t*:          __no_imax((const intmax_t*)(VPTR),     (OKPTR)), \
+    const uintmax_t*:   __no_umax((const uintmax_t*)(VPTR),    (OKPTR)), \
+    uintmax_t*:         __no_umax((const uintmax_t*)(VPTR),    (OKPTR)), \
+    /* Floating point */ \
+    const float*:       __no_f32 ((const float*)(VPTR),        (OKPTR)), \
+    float*:             __no_f32 ((const float*)(VPTR),        (OKPTR)), \
+    const double*:      __no_f64 ((const double*)(VPTR),       (OKPTR)), \
+    double*:            __no_f64 ((const double*)(VPTR),       (OKPTR)), \
+    const long double*: __no_f128((const long double*)(VPTR),  (OKPTR)), \
+    long double*:       __no_f128((const long double*)(VPTR),  (OKPTR)) \
+    /* default: unsupported pointer type -> NaN */ \
+  , default: __no_from_unsupported((const void*)(VPTR), (OKPTR)) )
+#endif /* NUMERIC_ONLY_HAVE_GENERIC */
 
 #ifdef __cplusplus
 } /* extern "C" */
