@@ -23,6 +23,7 @@ set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 # collect source files
 file(GLOB_RECURSE web-ifc-source web-ifc/*.cpp)
 file(GLOB_RECURSE web-ifc-wasm wasm/*.cpp)
+file(GLOB_RECURSE web-ifc-ffi ffi/*.cpp)
 
 # download the external projects and save their paths
 Message("Downloading FastFloat")
@@ -117,6 +118,9 @@ if(EMSCRIPTEN)
 endif()
 
 if(NOT EMSCRIPTEN)
+
+	option(WEBIFC_BUILD_FFI "Build native FFI C API library" ON)
+
 	# build web-ifc as a static library
 	add_library(web-ifc-library STATIC ${web-ifc-source})
 	param_setter(web-ifc-library)
@@ -138,5 +142,20 @@ if(NOT EMSCRIPTEN)
 	if(NOT RELEASE)
 		target_compile_options(web-ifc PUBLIC "-DCSG_DEBUG_OUTPUT")
 		target_compile_options(web-ifc PUBLIC "-DDEBUG_DUMP_SVG")
+	endif()
+
+	if(WEBIFC_BUILD_FFI)
+		# Build FFI static library exposing C API (reuse core sources + ffi sources)
+		add_library(web-ifc-ffi STATIC ${web-ifc-source} ${web-ifc-ffi})
+		param_setter(web-ifc-ffi)
+		# Public include for ffi consumers
+		target_include_directories(web-ifc-ffi PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/ffi)
+		# Test executable using FFI C API (only test sources + helper, link against library)
+		add_executable(web-ifc-ffi-test "./test/io_helpers.cpp" "./test/web-ifc-ffi-test.cpp" )
+		param_setter(web-ifc-ffi-test)
+		target_include_directories(web-ifc-ffi-test PUBLIC ${tinycpptest_SOURCE_DIR}/Sources ${CMAKE_CURRENT_SOURCE_DIR}/ffi)
+		target_link_libraries(web-ifc-ffi-test PRIVATE web-ifc-ffi)
+		add_test(NAME web-ifc-ffi-test COMMAND web-ifc-ffi-test)
+		set_tests_properties(web-ifc-ffi-test PROPERTIES LABELS "web-ifc-ffi")
 	endif()
 endif()
