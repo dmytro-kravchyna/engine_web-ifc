@@ -1,7 +1,7 @@
 
 export interface Type {
     name: string;
-    typeName : string;
+    typeName: string;
     typeNum: number;
     isList: boolean;
     isEnum: boolean;
@@ -38,8 +38,7 @@ export interface Entity {
     isIfcProduct: boolean;
 }
 
-export interface Param
-{
+export interface Param {
     name: string;
     type: string;
     prop: Prop;
