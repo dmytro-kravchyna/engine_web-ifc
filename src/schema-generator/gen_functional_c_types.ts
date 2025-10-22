@@ -33,9 +33,12 @@ completeEntityList.add("FILE_NAME");
 completeEntityList.add("FILE_DESCRIPTION");
 
 let typeList = new Set<string>();
+let classList = new Set<string>();
 
 for (var i = 0; i < expFiles.length; i++) {
     let schemaData = fs.readFileSync("./" + expFiles[i]).toString();
+    var schemaName = expFiles[i].replace(".exp", "").replace(".", "_");
+
     let parsed = parseElements(schemaData);
     let entities: Array<Entity> = sortEntities(parsed.entities);
     let types = parsed.types;
@@ -49,13 +52,36 @@ for (var i = 0; i < expFiles.length; i++) {
         if (entities[x].isIfcProduct) completeifcElementList.add(entities[x].name);
     }
 
-    types.forEach(t => (t.isList || (!t.isSelect && !t.isEnum)) && typeList.add(t.name));
+    for (const type of types) {
+        if (type.isList) {
+            // let typeNum = type.typeNum;
+            classList.add(`typedef struct { size_t number; void* value; } ${schemaName}_${type.name};`);
+            // tsSchema.push(`export class ${type.name} { type: number=${typeNum}; constructor(public value: Array<${type.typeName}>) {} };`);
+            typeList.add(type.name);
+        } else if (type.isSelect) {
+            classList.add(`typedef struct { void* data; } ${schemaName}_${type.name};`);
+        } else if (type.isEnum) {
+            //          else if (type.isEnum) {
+            //   tsSchema.push(`export class ${type.name} {` + type.values.map((v) => `static ${v} : any =  { type:3, value:'${v}'}; `).join('') + '}');
+            // }
+            classList.add(`typedef struct { size_t type; void* data; } ${schemaName}_${type.name};`);
+        } else {
+            // let typeName = type.typeName;
+            // let typeNum = type.typeNum;
+            // if (type.typeName.search('Ifc') != -1) {
+            //     let rawType = types.find(x => x.name == type.typeName);
+            //     typeName = rawType!.typeName;
+            //     typeNum = rawType!.typeNum;
+            // }
+            typeList.add(type.name);
+        }
+    }
 }
 
 new Set([...completeEntityList, ...typeList]).forEach(entity => {
-  let name = entity.toUpperCase();
-  let code = crc32(name, crcTable);
-  cSchema.push(`#define ${name} ${code}`);
+    let name = entity.toUpperCase();
+    let code = crc32(name, crcTable);
+    cSchema.push(`#define ${name} ${code}`);
 });
 
 cSchema.push(``);
@@ -105,6 +131,11 @@ cSchema.push(`static const char* SCHEMA_NAME_DATA[] = { ${DATA.map(n => `"${n.re
 cSchema.push(`static const Slice SCHEMA_NAME_INDEX[] = { ${INDEX.map(i => `{${i.off},${i.len}}`).join(", ")} };`);
 cSchema.push(`static const size_t SCHEMA_NAME_ROWS = sizeof(SCHEMA_NAME_INDEX) / sizeof(SCHEMA_NAME_INDEX[0]);`);
 cSchema.push(`static inline const char* get_schema_name(size_t r, size_t c) { return SCHEMA_NAME_DATA[ SCHEMA_NAME_INDEX[r].off + c ]; }`);
+cSchema.push(``);
+
+for (let classDef of classList) {
+    cSchema.push(classDef);
+}
 cSchema.push(``);
 
 cSchema.push(`#ifdef __cplusplus`);

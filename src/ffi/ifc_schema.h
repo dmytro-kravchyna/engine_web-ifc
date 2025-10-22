@@ -5,12 +5,13 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <web-ifc/schema/ifc-schema.h>
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#define FILE_SCHEMA 1109904537
+#define FILE_SCHEMA webifc::schema::FILE_SCHEMA
 #define FILE_NAME 1390159747
 #define FILE_DESCRIPTION 599546466
 #define IFCACTORROLE 3630933823
@@ -1163,20 +1164,14 @@ typedef enum {
   LOGICAL_UNKNOWN = 2
 } logical;
 
-typedef enum {
-	IFC2X3 = 0,
-	IFC4 = 1,
-	IFC4X3 = 2,
-} Schemas;
-
-static inline const char* schemas_to_string(Schemas s) {
-  switch (s) {
-    case IFC2X3: return "IFC2X3";
-    case IFC4: return "IFC4";
-    case IFC4X3: return "IFC4X3";
-    default: return "Unknown";
-  }
-}
+// static inline const char* schemas_to_string(IFC_SCHEMA s) {
+//   switch (s) {
+//     case IFC2X3: return "IFC2X3";
+//     case IFC4: return "IFC4";
+//     case IFC4X3: return "IFC4X3";
+//     default: return "Unknown";
+//   }
+// }
 
 typedef struct { size_t off, len; } Slice;
 

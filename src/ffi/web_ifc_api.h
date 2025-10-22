@@ -23,7 +23,7 @@
   #include <windows.h>
 #endif
 
-// #include "ifc_schema.h"
+#include "ifc_schema.h"
 #include "helpers/log.h"
 
 /* Platform-specific export */
@@ -508,12 +508,12 @@ FFI_EXPORT void ifc_api_free(IfcAPI *api);
 FFI_EXPORT int ifc_api_init(IfcAPI *api);
 
 static int find_schema_index(const char* schemaName) {
-//   for (size_t i = 0; i < SCHEMA_NAME_ROWS; ++i) {
-//     for (size_t j = 0; j < SCHEMA_NAME_INDEX[i].len; ++j) {
-//       const char* name = SCHEMA_NAME_DATA[SCHEMA_NAME_INDEX[i].off + j];
-//       if (name && strcmp(name, schemaName) == 0) return (int)i;
-//     }
-//   }
+  for (size_t i = 0; i < SCHEMA_NAME_ROWS; ++i) {
+    for (size_t j = 0; j < SCHEMA_NAME_INDEX[i].len; ++j) {
+      const char* name = SCHEMA_NAME_DATA[SCHEMA_NAME_INDEX[i].off + j];
+      if (name && strcmp(name, schemaName) == 0) return (int)i;
+    }
+  }
   return -1;
 }
 

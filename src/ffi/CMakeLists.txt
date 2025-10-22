@@ -200,12 +200,15 @@ if(BUILD_TESTING)
   # builds), the user may disable BUILD_TESTING entirely.  Otherwise,
   # tests are always run.
 
-  # Test executables compiled as C++
-  set(TEST_SOURCES
-    ${CMAKE_CURRENT_LIST_DIR}/test/log_test.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/test/numeric_test.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/test/ifc_schema_test.cpp
-  )
+# Test executables compiled as C++
+# Automatically discover all test sources matching *_test.cpp in the test/ folder
+file(GLOB TEST_SOURCES "${CMAKE_CURRENT_LIST_DIR}/test/*_test.cpp")
+
+if(NOT TEST_SOURCES)
+    message(STATUS "No test sources found in ${CMAKE_CURRENT_LIST_DIR}/test")
+else()
+    message(STATUS "Found test sources: ${TEST_SOURCES}")
+endif()
 
   foreach(src IN LISTS TEST_SOURCES)
     # Derive target name from filename (strip directory and extension)
@@ -243,7 +246,7 @@ if(BUILD_TESTING)
   # have been built.
   add_custom_target(run_tests ALL
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
-    DEPENDS log_test numeric_test ifc_schema_test
+    DEPENDS log_test numeric_test ifc_schema_test web_ifc_api_test
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     COMMENT "Running unit tests"
   )
