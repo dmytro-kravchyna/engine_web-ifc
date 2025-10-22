@@ -1,7 +1,28 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <math.h>
+/*
+ * Numeric tests translated to C++.
+ *
+ * This file mirrors the original numeric_test.c, but compiles as C++
+ * so that it can link cleanly against the C++ WebIFC library and
+ * avoid symbol clashes.  It includes <cmath> for floating point
+ * functions and uses std::fabs and std::isnan.  Otherwise the logic
+ * is identical.
+ */
+
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
+// Include cmath for floating-point helpers and limits for NaN
+#include <cmath>
+#include <limits>
+#include <cstdint>
+
+// Pull fabs and isnan into global namespace for brevity
+using std::fabs;
+using std::isnan;
+// Define a portable NaN constant for comparisons.  std::numeric_limits
+// lives in <limits> and quiet_NaN() returns a NaN value.
+static const double NaNValue = std::numeric_limits<double>::quiet_NaN();
+
 #include "../helpers/numeric.h"
 
 static int failures = 0;
@@ -55,11 +76,11 @@ int main(void) {
     /* More cases */
     Numeric nnull = numeric_from_string(NULL, &ok);
     expect_int(ok, 0, "parse NULL returns ok=0");
-    numeric_to_f64(&nnull, &x); expect_double(x, NAN, "NULL parse -> NaN");
+    numeric_to_f64(&nnull, &x); expect_double(x, NaNValue, "NULL parse -> NaN");
 
     Numeric nanstr = numeric_from_string("abc", &ok);
     expect_int(ok, 0, "parse non-numeric returns ok=0");
-    numeric_to_f64(&nanstr, &x); expect_double(x, NAN, "non-numeric -> NaN");
+    numeric_to_f64(&nanstr, &x); expect_double(x, NaNValue, "non-numeric -> NaN");
 
     Numeric big = numeric_from_u64(18446744073709551615ULL);
     numeric_to_f64(&big, &x); printf("big = %g\n", x);
@@ -163,5 +184,3 @@ int test_generic_macro(void) {
     (void)0; return 0;
 #endif
 }
-
-

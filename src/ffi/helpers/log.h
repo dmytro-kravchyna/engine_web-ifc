@@ -14,6 +14,8 @@
  */
 
 
+
+
 typedef enum {
     LOG_LEVEL_DEBUG = 1,
     LOG_LEVEL_WARN  = 3,
@@ -90,6 +92,18 @@ extern "C" {
 #include <android/log.h>
 #endif
 
+/* When building with Emscripten (WebAssembly), include the
+ * appropriate headers so that we can route log messages to the
+ * JavaScript console.  These headers define the emscripten_log()
+ * function and the EM_LOG_* flag constants, as well as convenience
+ * wrappers like emscripten_console_log().  See the Emscripten API
+ * reference for details【360683100230186†L49-L70】.
+ */
+#if defined(__EMSCRIPTEN__)
+#include <emscripten/emscripten.h>
+#include <emscripten/console.h>
+#endif
+
 /* Internal static state for log level and custom sink.  Each translation  */
 /* unit including this header will have its own copy.                     */
 static atomic_int web_ifc_log_currentLogLevel = ATOMIC_VAR_INIT(LOG_LEVEL_ERROR);
@@ -134,6 +148,12 @@ static inline void web_ifc_log_dispatch_message(const char *levelPrefix, const c
     }
 #if defined(__ANDROID__) || defined(WEB_IFC_ANDROID_LOG)
     int androidPrio = ANDROID_LOG_INFO;
+    /* Map our log prefixes to Android log priorities.  If the prefix
+     * indicates an error or warning, choose the corresponding Android
+     * priority so that the message appears at the appropriate severity
+     * in logcat.  Debug defaults to ANDROID_LOG_DEBUG and all other
+     * messages default to ANDROID_LOG_INFO.
+     */
     if (strncmp(levelPrefix, "ERROR", 5) == 0) {
         androidPrio = ANDROID_LOG_ERROR;
     } else if (strncmp(levelPrefix, "WARN", 4) == 0) {
@@ -141,20 +161,43 @@ static inline void web_ifc_log_dispatch_message(const char *levelPrefix, const c
     } else if (strncmp(levelPrefix, "DEBUG", 5) == 0) {
         androidPrio = ANDROID_LOG_DEBUG;
     }
-    /* Tag messages with a reasonable identifier. */
     __android_log_print(androidPrio, "web-ifc", "%s%s", levelPrefix, formatted);
+
+#elif defined(__EMSCRIPTEN__)
+    /* When targeting WebAssembly via Emscripten, use emscripten_log() to
+     * send messages directly to the browser's JavaScript console.  The
+     * EM_LOG_CONSOLE flag ensures the message goes directly to the
+     * console, bypassing Module.out()/err().  We choose the log level
+     * flag based on our prefix so that errors, warnings and debug
+     * messages are distinguished appropriately【607520833762944†L1674-L1703】.  For
+     * plain messages (log_msg), treat them as info-level logs.
+     */
+    int emFlags = EM_LOG_CONSOLE;
+    if (strncmp(levelPrefix, "ERROR", 5) == 0) {
+        emFlags |= EM_LOG_ERROR;
+    } else if (strncmp(levelPrefix, "WARN", 4) == 0) {
+        emFlags |= EM_LOG_WARN;
+    } else if (strncmp(levelPrefix, "DEBUG", 5) == 0) {
+        emFlags |= EM_LOG_DEBUG;
+    } else {
+        emFlags |= EM_LOG_INFO;
+    }
+    /* Compose the message from the prefix and the formatted string. */
+    emscripten_log(emFlags, "%s%s", levelPrefix, formatted);
+
 #else
+    /* Default native implementation: write to stdout/stderr.  For
+     * warnings and errors, use stderr; everything else goes to
+     * stdout.  Prefixes are written without newlines, followed by
+     * the formatted message and a newline. */
     FILE *stream = stdout;
-    /* For warnings and errors, use stderr. */
     if ((strncmp(levelPrefix, "ERROR", 5) == 0) ||
         (strncmp(levelPrefix, "WARN", 4) == 0)) {
         stream = stderr;
     }
-    /* Prefix, if provided, is written without a newline. */
     if (levelPrefix && *levelPrefix) {
         fputs(levelPrefix, stream);
     }
-    /* Write the formatted message followed by a newline. */
     fputs(formatted, stream);
     fputc('\n', stream);
 #endif

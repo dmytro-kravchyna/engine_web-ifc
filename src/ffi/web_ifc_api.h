@@ -23,8 +23,48 @@
   #include <windows.h>
 #endif
 
-#include "ifc_schema.h"
+// #include "ifc_schema.h"
 #include "helpers/log.h"
+
+/* Platform-specific export */
+#if defined(_WIN32) || defined(_WIN64) || defined(__CYGWIN__)
+  /* When building the DLL define WEB_IFC_API_BUILD in your CMake for the target */
+  #ifdef WEB_IFC_API_BUILD
+    #define FFI_EXPORT __declspec(dllexport)
+  #else
+    #define FFI_EXPORT __declspec(dllimport)
+  #endif
+#elif defined(__EMSCRIPTEN__)
+  /* Keep the symbol alive through link-time GC */
+  #include <emscripten/emscripten.h>
+  #define FFI_EXPORT EMSCRIPTEN_KEEPALIVE
+#elif defined(__GNUC__) || defined(__clang__)
+  /* GCC/Clang (Linux, Android NDK, Apple clang) */
+  #define FFI_EXPORT __attribute__((visibility("default")))
+#else
+  #define FFI_EXPORT
+#endif
+
+/* Enable multithreading on native platforms. On Emscripten only enable
+    * if pthreads are explicitly enabled. The ModelManager constructor takes
+    * a boolean _mt_enabled parameter. */
+#if defined(__EMSCRIPTEN__)
+    #if defined(__EMSCRIPTEN_PTHREADS__)
+        #define MT_ENABLED 1
+    #else
+        #define MT_ENABLED 0
+    #endif
+#else
+    #define MT_ENABLED 1
+#endif
+
+#ifdef __cplusplus
+    /* Forward declare ModelManager to avoid forcing inclusion of C++ headers
+     * from this C header. The implementation file and C++ consumers may
+     * include the full C++ headers as needed. */
+    namespace webifc { namespace manager { class ModelManager; } }
+#endif
+
 
 #ifdef __cplusplus
 extern "C" {
@@ -105,19 +145,17 @@ typedef struct {
     size_t  arguments_len;
 } RawLineData;
 
-struct PlacedGeometry;  /* fwd */
-
-typedef struct {
-    struct PlacedGeometry* data;
-    size_t                 size;
-} PlacedGeometryVector;
-
 typedef struct {
     Color   color;
     int     geometryExpressID;
     double* flatTransformation;      /* e.g., 16 elements for 4x4 */
     size_t  flatTransformation_len;
 } PlacedGeometry;
+
+typedef struct {
+    PlacedGeometry* data;
+    size_t          size;
+} PlacedGeometryVector;
 
 typedef struct FlatMesh {
     PlacedGeometryVector geometries;
@@ -451,55 +489,31 @@ typedef struct {
     int   **deleted_lines;
     size_t  deleted_lines_count;
     void   *properties;
-    // webifc::manager::ModelManager* manager;
+#ifdef __cplusplus
+    webifc::manager::ModelManager* manager;
+#else
+    void* manager;
+#endif
 } IfcAPI;
 
 /* Create a new API object.  Memory is allocated with malloc. */
-IfcAPI *ifc_api_new(void) {
-    IfcAPI *api = (IfcAPI *)calloc(1, sizeof(IfcAPI));
-    return api;
-}
+FFI_EXPORT IfcAPI *ifc_api_new(void);
 
 /* Free an API object and any internal allocations. */
-void ifc_api_free(IfcAPI *api) {
-    if (!api) return;
-    /* Free model schema names */
-    if (api->model_schema_name_list) {
-        for (size_t i = 0; i < api->model_schema_count; ++i) {
-            free(api->model_schema_name_list[i]);
-        }
-        free(api->model_schema_name_list);
-    }
-    /* Free model schema list */
-    free(api->model_schema_list);
-    /* Free deleted lines arrays */
-    if (api->deleted_lines) {
-        for (size_t i = 0; i < api->deleted_lines_count; ++i) {
-            free(api->deleted_lines[i]);
-        }
-        free(api->deleted_lines);
-    }
-    /* Free wasm path */
-    /* Free the API struct */
-    free(api);
-}
+FFI_EXPORT void ifc_api_free(IfcAPI *api);
 
 /* Initialize the API.  In this stub implementation this always
  * succeeds and returns 0.  A custom locate file handler may be
  * supplied as a pointer (unused here). */
-int ifc_api_init(IfcAPI *api){
-    if (!api) return -1;
-    log_set_level(LOG_LEVEL_ERROR);
-    return 0;
-}
+FFI_EXPORT int ifc_api_init(IfcAPI *api);
 
 static int find_schema_index(const char* schemaName) {
-  for (size_t i = 0; i < SCHEMA_NAME_ROWS; ++i) {
-    for (size_t j = 0; j < SCHEMA_NAME_INDEX[i].len; ++j) {
-      const char* name = SCHEMA_NAME_DATA[SCHEMA_NAME_INDEX[i].off + j];
-      if (name && strcmp(name, schemaName) == 0) return (int)i;
-    }
-  }
+//   for (size_t i = 0; i < SCHEMA_NAME_ROWS; ++i) {
+//     for (size_t j = 0; j < SCHEMA_NAME_INDEX[i].len; ++j) {
+//       const char* name = SCHEMA_NAME_DATA[SCHEMA_NAME_INDEX[i].off + j];
+//       if (name && strcmp(name, schemaName) == 0) return (int)i;
+//     }
+//   }
   return -1;
 }
 
@@ -524,47 +538,41 @@ static inline LoaderSettings ifc_api_create_settings(const LoaderSettings* in) {
 /* Open multiple models from byte buffers.  Returns an array of model
  * IDs allocated with malloc and stores its length in out_count.  The
  * returned array and its contents should be freed by the caller. */
-int *ifc_api_open_models(IfcAPI *api,
+FFI_EXPORT int *ifc_api_open_models(IfcAPI *api,
                         const ByteArray* data_sets, /* array of ByteArray */
                         size_t num_data_sets,
                         const LoaderSettings *settings,
-                        size_t *out_count) {
-    return NULL;
-}
+                        size_t *out_count);
 
 /* Open a single model from a buffer.  Returns a model ID on success
  * or -1 on failure. */
-int ifc_api_open_model(IfcAPI *api,
+FFI_EXPORT int ifc_api_open_model(IfcAPI *api,
                         const ByteArray data,
-                        const LoaderSettings *settings){
-    if (!api || !data.data || data.len == 0) return -1;
-    LoaderSettings eff = ifc_api_create_settings(settings);
-
-}
+                        const LoaderSettings *settings);
 
 /* Open a model by streaming bytes using a user provided callback. */
-int ifc_api_open_model_from_callback(IfcAPI *api,
+FFI_EXPORT int ifc_api_open_model_from_callback(IfcAPI *api,
                                       ModelLoadCallback callback,
                                       void *load_cb_user_data,
                                       const LoaderSettings *settings);
 
 /* Retrieve the schema name for a given model ID.  Returns NULL if
  * unknown.  The returned string is owned by the API. */
-const char *ifc_api_get_model_schema(const IfcAPI *api, int model_id);
+FFI_EXPORT const char *ifc_api_get_model_schema(const IfcAPI *api, int model_id);
 
 /* Create a new model.  Returns a model ID on success or -1 on error. */
-int ifc_api_create_model(IfcAPI *api,
+FFI_EXPORT int ifc_api_create_model(IfcAPI *api,
                           const NewIfcModel *model,
                           const LoaderSettings *settings);
 
 /* Save a model to a contiguous buffer.  Returns a malloc'ed buffer
  * and stores its size in out_size.  The caller must free the buffer. */
-uint8_t *ifc_api_save_model(const IfcAPI *api,
+FFI_EXPORT uint8_t *ifc_api_save_model(const IfcAPI *api,
                              int model_id,
                              size_t *out_size);
 
 /* Save a model by streaming bytes via a callback. */
-void ifc_api_save_model_to_callback(const IfcAPI *api,
+FFI_EXPORT void ifc_api_save_model_to_callback(const IfcAPI *api,
                                      int model_id,
                                      ModelSaveCallback save_cb,
                                      void *save_cb_user_data);

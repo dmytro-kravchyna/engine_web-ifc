@@ -1,8 +1,13 @@
-// Comprehensive tests for generated ifc-schema.h
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
+// Comprehensive tests for generated ifc-schema.h (C++ version)
+#include <cstdio>
+#include <cstdlib>
+#include <cstring>
 #include <inttypes.h>
+
+// Include the wrapper header.  In C++ mode this will resolve to either
+// the generated C schema or the C++ schema from the WebIFC project
+// depending on availability.  Compiling as C++ avoids duplicate
+// enumerator definitions.
 #include "ifc_schema.h"
 
 static int assertions = 0;
