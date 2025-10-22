@@ -200,19 +200,23 @@ if(BUILD_TESTING)
   # builds), the user may disable BUILD_TESTING entirely.  Otherwise,
   # tests are always run.
 
-# Test executables compiled as C++
-# Automatically discover all test sources matching *_test.cpp in the test/ folder
-file(GLOB TEST_SOURCES "${CMAKE_CURRENT_LIST_DIR}/test/*_test.cpp")
+  # Test executables compiled as C++
+  # Automatically discover all test sources matching *_test.cpp in the test/ folder
+  file(GLOB TEST_SOURCES "${CMAKE_CURRENT_LIST_DIR}/test/*_test.cpp")
 
-if(NOT TEST_SOURCES)
+  if(NOT TEST_SOURCES)
     message(STATUS "No test sources found in ${CMAKE_CURRENT_LIST_DIR}/test")
-else()
+  else()
     message(STATUS "Found test sources: ${TEST_SOURCES}")
-endif()
+  endif()
+
+  # Collect created test target names so run_tests can depend on them
+  set(TEST_TARGETS)
 
   foreach(src IN LISTS TEST_SOURCES)
     # Derive target name from filename (strip directory and extension)
     get_filename_component(tgt_name ${src} NAME_WE)
+    list(APPEND TEST_TARGETS ${tgt_name})
     add_executable(${tgt_name} ${src})
     # Include paths: the ffi root and helpers for test headers
     target_include_directories(${tgt_name} PRIVATE
@@ -235,9 +239,11 @@ endif()
     )
   endforeach()
 
-  # Link against libm on Unix for numeric_test.cpp (C++ may still need libm)
+  # Link against libm on Unix for numeric_test if that target exists
   if(UNIX AND NOT APPLE AND NOT IS_EMSCRIPTEN)
-    target_link_libraries(numeric_test PRIVATE m)
+    if(TARGET numeric_test)
+      target_link_libraries(numeric_test PRIVATE m)
+    endif()
   endif()
 
   # Create a custom target that runs all tests.  By specifying
@@ -246,7 +252,7 @@ endif()
   # have been built.
   add_custom_target(run_tests ALL
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
-    DEPENDS log_test numeric_test ifc_schema_test web_ifc_api_test
+    DEPENDS ${TEST_TARGETS}
     WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
     COMMENT "Running unit tests"
   )

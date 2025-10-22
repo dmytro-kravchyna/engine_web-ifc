@@ -13,9 +13,6 @@
  * To route all messages through a custom sink, call log_set_sink().
  */
 
-
-
-
 typedef enum {
     LOG_LEVEL_DEBUG = 1,
     LOG_LEVEL_WARN  = 3,
