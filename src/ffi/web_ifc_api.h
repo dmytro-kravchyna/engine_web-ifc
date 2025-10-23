@@ -70,17 +70,17 @@
 extern "C" {
 #endif
 
-#define UNKNOWN 0
-#define STRING 1
-#define LABEL 2
-#define ENUM 3
-#define REAL 4
-#define REF 5
-#define EMPTY 6
-#define SET_BEGIN 7
-#define SET_END 8
-#define LINE_END 9
-#define INTEGER 10
+static const char UNKNOWN = 0;
+static const char STRING = 1;
+static const char LABEL = 2;
+static const char ENUM = 3;
+static const char REAL = 4;
+static const char REF = 5;
+static const char EMPTY = 6;
+static const char SET_BEGIN = 7;
+static const char SET_END = 8;
+static const char LINE_END = 9;
+static const char INTEGER = 10;
 
 /**
  * Settings for the IFCLoader.
