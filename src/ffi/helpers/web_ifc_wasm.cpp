@@ -124,7 +124,7 @@ void CloseAllModels(webifc::manager::ModelManager *manager)
  * @param callback Data source callback supplying model bytes on demand.
  * @return The identifier of the newly created model.
  */
-int OpenModel(webifc::manager::ModelManager *manager,
+uint32_t OpenModel(webifc::manager::ModelManager *manager,
               webifc::manager::LoaderSettings settings,
               std::function<uint32_t(char *, size_t, size_t)> callback)
 {

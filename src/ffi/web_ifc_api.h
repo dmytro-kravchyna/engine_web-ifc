@@ -112,7 +112,7 @@ extern "C"
     {
         const bool *COORDINATE_TO_ORIGIN;                 /* If true, translate model to the origin. */
         const uint16_t *CIRCLE_SEGMENTS;                  /* Segments used to approximate circles. */
-        const uint32_t *MEMORY_LIMIT;                     /* Max memory for IFC data in bytes. */
+        uint32_t *MEMORY_LIMIT;                     /* Max memory for IFC data in bytes. */
         const uint32_t *TAPE_SIZE;                        /* Internal buffer tape size (bytes/units). */
         const uint16_t *LINEWRITER_BUFFER;                /* Lines to buffer when writing IFC files. */
         const double *TOLERANCE_PLANE_INTERSECTION;       /* Tolerance for plane intersection checks. */
@@ -166,9 +166,9 @@ extern "C"
 
     typedef struct
     {
-        int ID;
-        int type;
-        void **arguments; /* any[]; your app decides element types */
+        uint32_t ID;
+        uint32_t type;
+        const char* arguments;
         size_t arguments_len;
     } RawLineData;
 
@@ -588,22 +588,30 @@ extern "C"
     FFI_EXPORT int ifc_api_init(IfcAPI *api);
 
     /**
-     * Opens a set of models and returns their model IDs.
+     * Opens a set of models from an array of buffers using preflight + write
+     * semantics and returns the number of model IDs written (or required).
+     *
+     * This function follows the same "preflight + write" convention used by
+     * other API functions: when `out` is NULL the call returns the number of
+     * model IDs required so the caller can allocate a buffer. When `out` is
+     * non-NULL the function writes up to that many model IDs into `out` and
+     * returns the number of items written.
      *
      * @param api          API context pointer created with ifc_api_new.
      * @param data_sets    Array of ByteArray structures containing IFC data (bytes).
      * @param num_data_sets Number of items in the data_sets array.
      * @param settings     Optional loader settings; may be NULL to use defaults.
-     * @param out_count    Output parameter receiving the number of model IDs returned.
-     * @returns A malloc'd array of model IDs.  The caller is responsible for freeing
-     *          the returned array.  If no models could be opened the function
-     *          returns NULL and *out_count is set to zero.
+     * @param out          Caller-supplied buffer to receive model IDs. May be NULL
+     *                    for preflight queries.
+     * @returns Number of model IDs required (when out==NULL) or number written
+     *          into `out` (when out!=NULL). Returns 0 if no models could be
+     *          opened or on error.
      */
-    FFI_EXPORT uint32_t *ifc_api_open_models(IfcAPI *api,
-                                             const ByteArray *data_sets,
-                                             size_t num_data_sets,
-                                             const LoaderSettings *settings,
-                                             size_t *out_count);
+    FFI_EXPORT size_t ifc_api_open_models(IfcAPI *api,
+                                          const ByteArray *data_sets,
+                                          size_t num_data_sets,
+                                          const LoaderSettings *settings,
+                                          uint32_t *out);
 
     /**
      * Opens a model from a single memory buffer and returns a model ID number.
@@ -613,9 +621,9 @@ extern "C"
      * @param settings Optional loader settings; may be NULL to use defaults.
      * @returns ModelID on success or (uint32_t)-1 if the model fails to open.
      */
-    FFI_EXPORT uint32_t ifc_api_open_model(IfcAPI *api,
-                                           const ByteArray data,
-                                           const LoaderSettings *settings);
+    FFI_EXPORT int32_t ifc_api_open_model(IfcAPI *api,
+                                          const ByteArray data,
+                                          const LoaderSettings *settings);
 
     /**
      * Opens a model by streaming bytes using a user provided callback and
@@ -630,10 +638,10 @@ extern "C"
      * @param settings Optional loader settings; may be NULL to use defaults.
      * @returns ModelID on success or -1 if the model fails to open.
      */
-    FFI_EXPORT int ifc_api_open_model_from_callback(IfcAPI *api,
-                                                    ModelLoadCallback callback,
-                                                    void *load_cb_user_data,
-                                                    const LoaderSettings *settings);
+    FFI_EXPORT int32_t ifc_api_open_model_from_callback(IfcAPI *api,
+                                                        ModelLoadCallback callback,
+                                                        void *load_cb_user_data,
+                                                        const LoaderSettings *settings);
 
     /**
      * Fetches the IFC schema name for a given model using preflight semantics.
@@ -825,7 +833,7 @@ extern "C"
      */
     FFI_EXPORT RawLineData ifc_api_get_header_line(const IfcAPI *api,
                                                    uint32_t model_id,
-                                                   int headerType);
+                                                   uint32_t headerType);
 
     /**
      * Gets the list of all IFC types contained in the model.

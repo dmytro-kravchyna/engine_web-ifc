@@ -46,6 +46,28 @@
 #include "helpers/web_ifc_wasm.cpp"
 #include "helpers/strdup.cpp"
 
+/* C++ implementation of the opaque IfcAPI defined in the header.  This
+ * struct is visible only in this translation unit and may freely use
+ * STL containers and C++ types.  It mirrors the responsibilities that
+ * were previously represented with raw arrays in the header.
+ */
+struct IfcAPI
+{
+  std::unordered_map<uint32_t, uint32_t> model_schema_list;
+  std::unordered_map<uint32_t, std::string> model_schema_name_list;
+  std::unordered_map<uint32_t, std::unordered_set<uint32_t>> deleted_lines;
+  // properties left as opaque pointer for now; the high-level TS code
+  // stored an object here. Keep as void* to preserve ABI.
+  void *properties = nullptr;
+  webifc::manager::ModelManager *manager = nullptr;
+  // ifcGuidMap: Map<number, Map<string | number, string | number>> = new Map<
+  //   number,
+  //   Map<string | number, string | number>
+  // >();
+  std::unordered_map<uint32_t, std::unordered_map<std::string, uint32_t>> guid_to_id;
+  std::unordered_map<uint32_t, std::unordered_map<uint32_t, std::string>> id_to_guid;
+};
+
 /*
  * This source file provides stub implementations for the C API defined
  * in web_ifc_api.h.  Each function mirrors a corresponding method on
@@ -74,7 +96,7 @@ static inline webifc::manager::LoaderSettings ifc_api_create_settings(const Load
   return s;
 }
 
-static int find_schema_index(const char *schemaName)
+static inline int lookup_schema_id(const char *schemaName)
 {
   for (size_t i = 0; i < SCHEMA_NAME_ROWS; ++i)
   {
@@ -88,27 +110,31 @@ static int find_schema_index(const char *schemaName)
   return -1;
 }
 
-/* C++ implementation of the opaque IfcAPI defined in the header.  This
- * struct is visible only in this translation unit and may freely use
- * STL containers and C++ types.  It mirrors the responsibilities that
- * were previously represented with raw arrays in the header.
- */
-struct IfcAPI
+
+static inline json get_header_line(const IfcAPI *api,
+                                   uint32_t model_id,
+                                   uint32_t headerType)
 {
-  std::vector<uint32_t> model_schema_list;
-  std::vector<std::string> model_schema_name_list;
-  std::unordered_map<uint32_t, std::unordered_set<uint32_t>> deleted_lines;
-  // properties left as opaque pointer for now; the high-level TS code
-  // stored an object here. Keep as void* to preserve ABI.
-  void *properties = nullptr;
-  webifc::manager::ModelManager *manager = nullptr;
-  // ifcGuidMap: Map<number, Map<string | number, string | number>> = new Map<
-  //   number,
-  //   Map<string | number, string | number>
-  // >();
-  std::unordered_map<uint32_t, std::unordered_map<std::string, uint32_t>> guid_to_id;
-  std::unordered_map<uint32_t, std::unordered_map<uint32_t, std::string>> id_to_guid;
-};
+  if (!api || !api->manager)
+    return {};
+
+  if (!api->manager->IsModelOpen(model_id))
+    return {};
+  auto loader = api->manager->GetIfcLoader(model_id);
+  auto lines = loader->GetHeaderLinesWithType(headerType);
+  if (lines.size() <= 0)
+    return {};
+  auto line = lines[0];
+  loader->MoveToHeaderLineArgument(line, 0);
+
+  std::string s = api->manager->GetSchemaManager().IfcTypeCodeToType(headerType);
+  json arguments = GetArgs(api->manager, model_id);
+  json retVal = json::object();
+  retVal["ID"] = line;
+  retVal["type"] = s;
+  retVal["arguments"] = arguments;
+  return retVal;
+}
 
 /* Create a new API object.  Allocates an IfcAPI structure and zeroes
  * its fields. */
@@ -153,36 +179,114 @@ extern "C" FFI_EXPORT int ifc_api_init(IfcAPI *api)
 }
 
 /* Opens multiple models from byte buffers (stub). */
-extern "C" FFI_EXPORT uint32_t *ifc_api_open_models(IfcAPI *api,
-                                                    const ByteArray *data_sets,
-                                                    size_t num_data_sets,
-                                                    const LoaderSettings *settings,
-                                                    size_t *out_count)
+extern "C" FFI_EXPORT size_t ifc_api_open_models(IfcAPI *api,
+                                                 const ByteArray *data_sets,
+                                                 size_t num_data_sets,
+                                                 const LoaderSettings *settings,
+                                                 uint32_t *out)
 {
-  // TODO: translate from TypeScript to C++ 20
-  if (!api || !api->manager)
-    return NULL;
+  if (!api || !api->manager || !data_sets || num_data_sets == 0)
+    return 0;
+
+  uint32_t limit = *settings->MEMORY_LIMIT / static_cast<uint32_t>(num_data_sets);
+  LoaderSettings s = {*settings};
+  s.MEMORY_LIMIT = &limit;
+
+  std::vector<uint32_t> modelIDs;
+  modelIDs.reserve(num_data_sets);
+  for (size_t i = 0; i < num_data_sets; ++i)
+  {
+    const ByteArray &data = data_sets[i];
+    auto modelID = ifc_api_open_model(api, data, &s);
+    modelIDs.push_back(modelID);
+  }
+  return ffi_strdup(modelIDs, out);
 }
 
 /* Opens a single model from a buffer (stub). */
-extern "C" FFI_EXPORT uint32_t ifc_api_open_model(IfcAPI *api,
-                                                  const ByteArray data,
-                                                  const LoaderSettings *settings)
+extern "C" FFI_EXPORT int32_t ifc_api_open_model(IfcAPI *api,
+                                                 const ByteArray data,
+                                                 const LoaderSettings *settings)
 {
-  // TODO: translate from TypeScript to C++ 20
   if (!api || !api->manager)
-    return NULL;
+    return -1;
+
+  webifc::manager::LoaderSettings s = ifc_api_create_settings(settings);
+  auto modelID = api->manager->CreateModel(s);
+
+  const std::function<uint32_t(char *, size_t, size_t)> loaderFunc = [&data](char *dest, size_t sourceOffset, size_t destSize)
+  {
+    size_t remain = data.len > sourceOffset ? data.len - sourceOffset : 0;
+    size_t srcSize = std::min(remain, destSize);
+    if (srcSize)
+      std::memcpy(dest, data.data + sourceOffset, srcSize);
+    return static_cast<uint32_t>(srcSize);
+  };
+  api->manager->GetIfcLoader(modelID)->LoadFile(loaderFunc);
+
+  api->deleted_lines[modelID] = {};
+
+  json arguments = GetArgs(api->manager, modelID);
+
+  // Read FILE_SCHEMA header to determine schema name. The helper returns a RawLineData
+  auto header = get_header_line(api, modelID, (uint32_t)webifc::schema::FILE_SCHEMA);
+  json args = header["arguments"];
+  std::string schemaName = args.array().at(0).at(0)["value"];
+
+  auto schema_id = lookup_schema_id(schemaName.c_str());
+  api->model_schema_list[modelID] = schema_id;
+  api->model_schema_name_list[modelID] = schemaName;
+  if (schema_id == -1)
+  {
+    log_error((std::string("Unsupported Schema:") + schemaName).c_str());
+    ifc_api_close_model(api, modelID);
+    return (uint32_t)-1;
+  }
+  log_debug((std::string("Parsing Model using ") + schemaName + " Schema").c_str());
+  return modelID;
 }
 
 /* Opens a model by streaming bytes using a callback (stub). */
-extern "C" FFI_EXPORT int ifc_api_open_model_from_callback(IfcAPI *api,
-                                                           ModelLoadCallback callback,
-                                                           void *load_cb_user_data,
-                                                           const LoaderSettings *settings)
+extern "C" FFI_EXPORT int32_t ifc_api_open_model_from_callback(IfcAPI *api,
+                                                               ModelLoadCallback callback,
+                                                               void *load_cb_user_data,
+                                                               const LoaderSettings *settings)
 {
-  // TODO: translate from TypeScript to C++ 20
   if (!api || !api->manager)
-    return NULL;
+    return -1;
+
+  webifc::manager::LoaderSettings s = ifc_api_create_settings(settings);
+  auto modelID = api->manager->CreateModel(s);
+
+  // Wrap the C-style ModelLoadCallback into a std::function that matches
+  // the loader's expected signature: (char *dest, size_t sourceOffset, size_t destSize) -> uint32_t
+  const std::function<uint32_t(char *, size_t, size_t)> loaderFunc =
+      [&callback, &load_cb_user_data](char *dest, size_t sourceOffset, size_t destSize) -> uint32_t
+  {
+    ByteArray ba = callback(sourceOffset, destSize, load_cb_user_data);
+    size_t srcSize = std::min(ba.len, destSize);
+    std::memcpy(dest, ba.data, srcSize);
+    return static_cast<uint32_t>(srcSize);
+  };
+  api->manager->GetIfcLoader(modelID)->LoadFile(loaderFunc);
+
+  api->deleted_lines[modelID] = {};
+
+  auto header = get_header_line(api, modelID, (uint32_t)webifc::schema::FILE_SCHEMA);
+  json args = header["arguments"];
+  std::string schemaName = args.array().at(0).at(0)["value"];
+
+  auto schema_id = lookup_schema_id(schemaName.c_str());
+  api->model_schema_list[modelID] = schema_id;
+  api->model_schema_name_list[modelID] = schemaName;
+  if (schema_id == -1)
+  {
+    log_error((std::string("Unsupported Schema:") + schemaName).c_str());
+    ifc_api_close_model(api, modelID);
+    return -1;
+  }
+  log_debug((std::string("Parsing Model using ") + schemaName + " Schema").c_str());
+  return static_cast<int>(modelID);
 }
 
 /* Retrieves the schema name for a model (stub). */
@@ -378,28 +482,14 @@ extern "C" FFI_EXPORT ProfileSection *ifc_api_create_profile(IfcAPI *api)
 /* Gets header line data (stub). */
 extern "C" FFI_EXPORT RawLineData ifc_api_get_header_line(const IfcAPI *api,
                                                           uint32_t model_id,
-                                                          int headerType)
+                                                          uint32_t headerType)
 {
-  // TODO: translate from TypeScript to C++ 20
-  if (!api || !api->manager)
-    return {};
-  // if (!manager.IsModelOpen(modelID))
-  //         return emscripten::val::undefined();
-  //     auto loader = manager.GetIfcLoader(modelID);
-  //     auto lines = loader->GetHeaderLinesWithType(headerType);
-
-  //     if (lines.size() <= 0)
-  //         return emscripten::val::undefined();
-  //     auto line = lines[0];
-  //     loader->MoveToHeaderLineArgument(line, 0);
-
-  //     std::string s(manager.GetSchemaManager().IfcTypeCodeToType(headerType));
-  //     auto arguments = GetArgs(modelID);
-  //     auto retVal = emscripten::val::object();
-  //     retVal.set("ID", line);
-  //     retVal.set("type", s);
-  //     retVal.set("arguments", arguments);
-  //     return retVal;
+  auto retVal = get_header_line(api, model_id, headerType);
+  return RawLineData{
+      .ID = retVal["ID"].get<uint32_t>(),
+      .type = retVal["type"].get<uint32_t>(),
+      .arguments = retVal["arguments"].dump().c_str(),
+      .arguments_len = retVal["arguments"].size()};
 }
 
 /* Gets all types of a model (stub). */
