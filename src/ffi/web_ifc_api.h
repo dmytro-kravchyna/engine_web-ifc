@@ -636,15 +636,25 @@ extern "C"
                                                     const LoaderSettings *settings);
 
     /**
-     * Fetches the IFC schema version of a given model.
+     * Fetches the IFC schema name for a given model using preflight semantics.
+     *
+     * This function follows the "preflight + write" convention used elsewhere
+     * in the API: when `out` is NULL, the function returns the number of
+     * payload bytes required (not including the terminating NUL) so the caller
+     * can allocate a buffer of the correct size. When `out` is non-NULL the
+     * function copies the UTF-8 schema name into `out` (and NUL-terminates it)
+     * and returns the number of payload bytes written (again excluding the NUL).
      *
      * @param api      API context pointer created with ifc_api_new.
      * @param model_id Model ID obtained from open or create calls.
-     * @returns The IFC schema name string.  The returned string is owned by
-     *          the API and must not be freed by the caller.  NULL is
-     *          returned if the schema is unknown.
+     * @param out      Caller-supplied buffer to receive the NUL-terminated UTF-8
+     *                 schema name. May be NULL for preflight queries.
+     * @returns Number of payload bytes required or written (excluding the NUL).
+     *          Returns 0 if the schema is unknown or the model is not open.
      */
-    FFI_EXPORT const char *ifc_api_get_model_schema(const IfcAPI *api, uint32_t model_id);
+    FFI_EXPORT size_t ifc_api_get_model_schema(const IfcAPI *api,
+                                               uint32_t model_id,
+                                               char *out);
 
     /**
      * Creates a new model and returns a modelID number.
@@ -886,8 +896,8 @@ extern "C"
      * @returns The next unused express ID starting from the value provided.
      */
     FFI_EXPORT uint32_t ifc_api_get_next_express_id(const IfcAPI *api,
-                                               uint32_t model_id,
-                                               uint32_t expressID);
+                                                    uint32_t model_id,
+                                                    uint32_t expressID);
 
     /**
      * Creates a new IFC entity of the specified type.
@@ -960,7 +970,7 @@ extern "C"
      * @returns The type code corresponding to the name, or 0 if not found.
      */
     FFI_EXPORT uint32_t ifc_api_get_type_code_from_name(const IfcAPI *api,
-                                                   const char *type_name);
+                                                        const char *type_name);
 
     /**
      * Evaluates whether a type is a subtype of IfcElement.
@@ -1066,8 +1076,8 @@ extern "C"
      * @returns Number of bytes written or required; zero on error.
      */
     FFI_EXPORT size_t ifc_api_get_all_lines(const IfcAPI *api,
-                                           uint32_t model_id,
-                                           uint32_t *out);
+                                            uint32_t model_id,
+                                            uint32_t *out);
 
     /**
      * Returns all cross sections in 2D contained in IFCSECTIONEDSOLID,

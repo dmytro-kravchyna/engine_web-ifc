@@ -159,13 +159,9 @@ extern "C" FFI_EXPORT uint32_t *ifc_api_open_models(IfcAPI *api,
                                                     const LoaderSettings *settings,
                                                     size_t *out_count)
 {
-  (void)api;
-  (void)data_sets;
-  (void)num_data_sets;
-  (void)settings;
-  if (out_count)
-    *out_count = 0;
-  return NULL;
+  // TODO: translate from TypeScript to C++ 20
+  if (!api || !api->manager)
+    return NULL;
 }
 
 /* Opens a single model from a buffer (stub). */
@@ -173,10 +169,9 @@ extern "C" FFI_EXPORT uint32_t ifc_api_open_model(IfcAPI *api,
                                                   const ByteArray data,
                                                   const LoaderSettings *settings)
 {
-  (void)api;
-  (void)data;
-  (void)settings;
-  return (uint32_t)-1;
+  // TODO: translate from TypeScript to C++ 20
+  if (!api || !api->manager)
+    return NULL;
 }
 
 /* Opens a model by streaming bytes using a callback (stub). */
@@ -185,19 +180,21 @@ extern "C" FFI_EXPORT int ifc_api_open_model_from_callback(IfcAPI *api,
                                                            void *load_cb_user_data,
                                                            const LoaderSettings *settings)
 {
-  (void)api;
-  (void)callback;
-  (void)load_cb_user_data;
-  (void)settings;
-  return -1;
+  // TODO: translate from TypeScript to C++ 20
+  if (!api || !api->manager)
+    return NULL;
 }
 
 /* Retrieves the schema name for a model (stub). */
-extern "C" FFI_EXPORT const char *ifc_api_get_model_schema(const IfcAPI *api, uint32_t model_id)
+extern "C" FFI_EXPORT size_t ifc_api_get_model_schema(const IfcAPI *api,
+                                                      uint32_t model_id,
+                                                      char *out)
 {
-  (void)api;
-  (void)model_id;
-  return NULL;
+  if (!api || !api->manager)
+    return 0;
+
+  auto result = api->model_schema_name_list.at(model_id);
+  return ffi_strdup(result, out);
 }
 
 /* Creates a new model (stub). */
@@ -205,10 +202,9 @@ extern "C" FFI_EXPORT int ifc_api_create_model(IfcAPI *api,
                                                const NewIfcModel *model,
                                                const LoaderSettings *settings)
 {
-  (void)api;
-  (void)model;
-  (void)settings;
-  return -1;
+  // TODO: translate from TypeScript to C++ 20
+  if (!api || !api->manager)
+    return NULL;
 }
 
 /* Saves a model to a contiguous buffer (stub). */
@@ -216,11 +212,36 @@ extern "C" FFI_EXPORT uint8_t *ifc_api_save_model(const IfcAPI *api,
                                                   uint32_t model_id,
                                                   size_t *out_size)
 {
-  (void)api;
-  (void)model_id;
-  if (out_size)
-    *out_size = 0;
-  return NULL;
+  // TODO: translate from TypeScript to C++ 20
+  if (!api || !api->manager)
+    return NULL;
+
+  // std::vector<uint8_t> dataBuffer;
+  // dataBuffer.reserve(1024);
+
+  // // Append chunks provided by SaveModel into dataBuffer
+  // SaveModel(api->manager, model_id, [&](char *src, size_t srcSize)
+  //           {
+  //   if (srcSize == 0)
+  //     return;
+  //   size_t old = dataBuffer.size();
+  //   dataBuffer.resize(old + srcSize);
+  //   std::memcpy(dataBuffer.data() + old, src, srcSize); });
+
+  // // Transfer ownership to a malloc'd buffer for C ABI callers.
+  // if (out_size)
+  //   *out_size = dataBuffer.size();
+  // if (dataBuffer.empty())
+  //   return NULL;
+
+  // const std::size_t bytes = ffi_strdup(dataBuffer, (uint8_t *)nullptr);
+  // if (bytes == 0)
+  //   return NULL;
+  // uint8_t *out = (uint8_t *)malloc(bytes);
+  // if (!out)
+  //   return NULL;
+  // ffi_strdup(dataBuffer, out);
+  // return out;
 }
 
 /* Saves a model by streaming bytes via a callback (stub). */
@@ -229,11 +250,20 @@ extern "C" FFI_EXPORT void ifc_api_save_model_to_callback(const IfcAPI *api,
                                                           ModelSaveCallback save_cb,
                                                           void *save_cb_user_data)
 {
-  (void)api;
-  (void)model_id;
-  (void)save_cb;
-  (void)save_cb_user_data;
-  /* no-op */
+  // TODO: translate from TypeScript to C++ 20
+  if (!api || !api->manager || !save_cb)
+    return;
+
+  // // Wrap the C-style callback into a std::function that accepts raw buffer
+  // SaveModel(api->manager, model_id, [&](char *src, size_t srcSize)
+  //           {
+  //   if (srcSize == 0)
+  //     return;
+  //   // Use ffi_strdup raw-bytes overload into a temporary vector to avoid manual malloc/free
+  //   std::vector<uint8_t> tmpVec(srcSize);
+  //   if (srcSize)
+  //     ffi_strdup(src, srcSize, tmpVec.data());
+  //   save_cb(tmpVec.data(), srcSize, save_cb_user_data); });
 }
 
 /* Retrieves the geometry of an element (stub). */
@@ -241,17 +271,16 @@ extern "C" FFI_EXPORT IfcGeometry *ifc_api_get_geometry(const IfcAPI *api,
                                                         uint32_t model_id,
                                                         int geometryExpressID)
 {
-    // TODO: translate from TypeScript to C++ 20
+  // TODO: translate from TypeScript to C++ 20
   if (!api || !api->manager)
     return {};
   //     return manager.IsModelOpen(modelID) ? manager.GetGeometryProcessor(modelID)->GetGeometry(expressID) : webifc::geometry::IfcGeometry();
-
 }
 
 /* Creates a new AABB helper (stub). */
 extern "C" FFI_EXPORT AABB *ifc_api_create_aabb(IfcAPI *api)
 {
-    // TODO: translate from TypeScript to C++ 20
+  // TODO: translate from TypeScript to C++ 20
   if (!api || !api->manager)
     return {};
 }
@@ -259,7 +288,7 @@ extern "C" FFI_EXPORT AABB *ifc_api_create_aabb(IfcAPI *api)
 /* Creates a new Extrusion helper (stub). */
 extern "C" FFI_EXPORT Extrusion *ifc_api_create_extrusion(IfcAPI *api)
 {
-    // TODO: translate from TypeScript to C++ 20
+  // TODO: translate from TypeScript to C++ 20
   if (!api || !api->manager)
     return {};
 }
@@ -267,7 +296,7 @@ extern "C" FFI_EXPORT Extrusion *ifc_api_create_extrusion(IfcAPI *api)
 /* Creates a new Sweep helper (stub). */
 extern "C" FFI_EXPORT Sweep *ifc_api_create_sweep(IfcAPI *api)
 {
-    // TODO: translate from TypeScript to C++ 20
+  // TODO: translate from TypeScript to C++ 20
   if (!api || !api->manager)
     return {};
 }
@@ -275,7 +304,7 @@ extern "C" FFI_EXPORT Sweep *ifc_api_create_sweep(IfcAPI *api)
 /* Creates a new CircularSweep helper (stub). */
 extern "C" FFI_EXPORT CircularSweep *ifc_api_create_circular_sweep(IfcAPI *api)
 {
-    // TODO: translate from TypeScript to C++ 20
+  // TODO: translate from TypeScript to C++ 20
   if (!api || !api->manager)
     return {};
 }
@@ -283,7 +312,7 @@ extern "C" FFI_EXPORT CircularSweep *ifc_api_create_circular_sweep(IfcAPI *api)
 /* Creates a new Revolution helper (stub). */
 extern "C" FFI_EXPORT Revolution *ifc_api_create_revolution(IfcAPI *api)
 {
-    // TODO: translate from TypeScript to C++ 20
+  // TODO: translate from TypeScript to C++ 20
   if (!api || !api->manager)
     return {};
 }
@@ -291,7 +320,7 @@ extern "C" FFI_EXPORT Revolution *ifc_api_create_revolution(IfcAPI *api)
 /* Creates a new CylindricalRevolve helper (stub). */
 extern "C" FFI_EXPORT CylindricalRevolve *ifc_api_create_cylindrical_revolution(IfcAPI *api)
 {
-    // TODO: translate from TypeScript to C++ 20
+  // TODO: translate from TypeScript to C++ 20
   if (!api || !api->manager)
     return {};
 }
@@ -299,7 +328,7 @@ extern "C" FFI_EXPORT CylindricalRevolve *ifc_api_create_cylindrical_revolution(
 /* Creates a new Parabola helper (stub). */
 extern "C" FFI_EXPORT Parabola *ifc_api_create_parabola(IfcAPI *api)
 {
-    // TODO: translate from TypeScript to C++ 20
+  // TODO: translate from TypeScript to C++ 20
   if (!api || !api->manager)
     return {};
 }
@@ -307,7 +336,7 @@ extern "C" FFI_EXPORT Parabola *ifc_api_create_parabola(IfcAPI *api)
 /* Creates a new Clothoid helper (stub). */
 extern "C" FFI_EXPORT Clothoid *ifc_api_create_clothoid(IfcAPI *api)
 {
-    // TODO: translate from TypeScript to C++ 20
+  // TODO: translate from TypeScript to C++ 20
   if (!api || !api->manager)
     return {};
 }
@@ -315,7 +344,7 @@ extern "C" FFI_EXPORT Clothoid *ifc_api_create_clothoid(IfcAPI *api)
 /* Creates a new Arc helper (stub). */
 extern "C" FFI_EXPORT Arc *ifc_api_create_arc(IfcAPI *api)
 {
-    // TODO: translate from TypeScript to C++ 20
+  // TODO: translate from TypeScript to C++ 20
   if (!api || !api->manager)
     return {};
 }
@@ -323,7 +352,7 @@ extern "C" FFI_EXPORT Arc *ifc_api_create_arc(IfcAPI *api)
 /* Creates a new AlignmentOp helper (stub). */
 extern "C" FFI_EXPORT AlignmentOp *ifc_api_create_alignment(IfcAPI *api)
 {
-    // TODO: translate from TypeScript to C++ 20
+  // TODO: translate from TypeScript to C++ 20
   if (!api || !api->manager)
     return {};
   //  return bimGeometry::Alignment();
