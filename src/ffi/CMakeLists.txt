@@ -214,7 +214,14 @@ if(BUILD_TESTING)
 
   # Test executables compiled as C++
   # Automatically discover all test sources matching *_test.cpp in the test/ folder
-  file(GLOB TEST_SOURCES "${CMAKE_CURRENT_LIST_DIR}/test/*_test.cpp")
+  # Look for test sources using either singular or plural suffixes.
+  file(GLOB TEST_SOURCES
+    "${CMAKE_CURRENT_LIST_DIR}/test/*_test.cpp"
+    "${CMAKE_CURRENT_LIST_DIR}/test/*_tests.cpp"
+  )
+  # Ensure a stable, unique ordering
+  list(REMOVE_DUPLICATES TEST_SOURCES)
+  list(SORT TEST_SOURCES)
 
   if(NOT TEST_SOURCES)
     message(STATUS "No test sources found in ${CMAKE_CURRENT_LIST_DIR}/test")
