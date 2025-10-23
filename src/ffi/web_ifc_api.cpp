@@ -8,6 +8,7 @@
 #include "web_ifc_api.h"
 #include <stdlib.h>
 #include <unordered_map>
+#include <unordered_set>
 
 // Standard library headers
 #include <string>
@@ -94,18 +95,19 @@ static int find_schema_index(const char *schemaName)
  */
 struct IfcAPI
 {
-  std::vector<int> model_schema_list;
+  std::vector<uint32_t> model_schema_list;
   std::vector<std::string> model_schema_name_list;
-  std::vector<std::vector<int>> deleted_lines;
+  std::unordered_map<uint32_t, std::unordered_set<uint32_t>> deleted_lines;
   // properties left as opaque pointer for now; the high-level TS code
   // stored an object here. Keep as void* to preserve ABI.
   void *properties = nullptr;
   webifc::manager::ModelManager *manager = nullptr;
-  // Per-model GUID <-> expressID mappings (optional, lazily populated).
-  // guid_to_id[model_id] maps GUID string -> expressID
-  // id_to_guid[model_id] maps expressID -> GUID string
-  std::vector<std::unordered_map<std::string, int>> guid_to_id;
-  std::vector<std::unordered_map<int, std::string>> id_to_guid;
+  // ifcGuidMap: Map<number, Map<string | number, string | number>> = new Map<
+  //   number,
+  //   Map<string | number, string | number>
+  // >();
+  std::unordered_map<uint32_t, std::unordered_map<std::string, uint32_t>> guid_to_id;
+  std::unordered_map<uint32_t, std::unordered_map<uint32_t, std::string>> id_to_guid;
 };
 
 /* Create a new API object.  Allocates an IfcAPI structure and zeroes
@@ -191,7 +193,7 @@ extern "C" FFI_EXPORT int ifc_api_open_model_from_callback(IfcAPI *api,
 }
 
 /* Retrieves the schema name for a model (stub). */
-extern "C" FFI_EXPORT const char *ifc_api_get_model_schema(const IfcAPI *api, int model_id)
+extern "C" FFI_EXPORT const char *ifc_api_get_model_schema(const IfcAPI *api, uint32_t model_id)
 {
   (void)api;
   (void)model_id;
@@ -211,7 +213,7 @@ extern "C" FFI_EXPORT int ifc_api_create_model(IfcAPI *api,
 
 /* Saves a model to a contiguous buffer (stub). */
 extern "C" FFI_EXPORT uint8_t *ifc_api_save_model(const IfcAPI *api,
-                                                  int model_id,
+                                                  uint32_t model_id,
                                                   size_t *out_size)
 {
   (void)api;
@@ -223,7 +225,7 @@ extern "C" FFI_EXPORT uint8_t *ifc_api_save_model(const IfcAPI *api,
 
 /* Saves a model by streaming bytes via a callback (stub). */
 extern "C" FFI_EXPORT void ifc_api_save_model_to_callback(const IfcAPI *api,
-                                                          int model_id,
+                                                          uint32_t model_id,
                                                           ModelSaveCallback save_cb,
                                                           void *save_cb_user_data)
 {
@@ -236,7 +238,7 @@ extern "C" FFI_EXPORT void ifc_api_save_model_to_callback(const IfcAPI *api,
 
 /* Retrieves the geometry of an element (stub). */
 extern "C" FFI_EXPORT IfcGeometry *ifc_api_get_geometry(const IfcAPI *api,
-                                                        int model_id,
+                                                        uint32_t model_id,
                                                         int geometryExpressID)
 {
   (void)api;
@@ -331,7 +333,7 @@ extern "C" FFI_EXPORT ProfileSection *ifc_api_create_profile(IfcAPI *api)
 
 /* Gets header line data (stub). */
 extern "C" FFI_EXPORT RawLineData ifc_api_get_header_line(const IfcAPI *api,
-                                                          int model_id,
+                                                          uint32_t model_id,
                                                           int headerType)
 {
   (void)api;
@@ -347,7 +349,7 @@ extern "C" FFI_EXPORT RawLineData ifc_api_get_header_line(const IfcAPI *api,
 
 /* Gets all types of a model (stub). */
 extern "C" FFI_EXPORT IfcType *ifc_api_get_all_types_of_model(const IfcAPI *api,
-                                                              int model_id,
+                                                              uint32_t model_id,
                                                               size_t *out_count)
 {
   (void)api;
@@ -359,8 +361,8 @@ extern "C" FFI_EXPORT IfcType *ifc_api_get_all_types_of_model(const IfcAPI *api,
 
 /* Gets line data for a single express ID (stub). */
 extern "C" FFI_EXPORT void *ifc_api_get_line(const IfcAPI *api,
-                                             int model_id,
-                                             int expressID,
+                                             uint32_t model_id,
+                                             uint32_t expressID,
                                              bool flatten,
                                              bool inverse,
                                              const char *inversePropKey)
@@ -376,7 +378,7 @@ extern "C" FFI_EXPORT void *ifc_api_get_line(const IfcAPI *api,
 
 /* Gets line data for multiple express IDs (stub). */
 extern "C" FFI_EXPORT void **ifc_api_get_lines(const IfcAPI *api,
-                                               int model_id,
+                                               uint32_t model_id,
                                                const int *expressIDs,
                                                size_t num_ids,
                                                bool flatten,
@@ -398,8 +400,8 @@ extern "C" FFI_EXPORT void **ifc_api_get_lines(const IfcAPI *api,
 
 /* Gets the next unused express ID (stub). */
 extern "C" FFI_EXPORT int ifc_api_get_next_express_id(const IfcAPI *api,
-                                                      int model_id,
-                                                      int expressID)
+                                                      uint32_t model_id,
+                                                      uint32_t expressID)
 {
   (void)api;
   (void)model_id;
@@ -409,260 +411,203 @@ extern "C" FFI_EXPORT int ifc_api_get_next_express_id(const IfcAPI *api,
 
 /* Creates a new IFC entity (stub). */
 extern "C" FFI_EXPORT void *ifc_api_create_ifc_entity(IfcAPI *api,
-                                                      int model_id,
+                                                      uint32_t model_id,
                                                       int type,
                                                       void *args)
 {
-  (void)api;
-  (void)model_id;
-  (void)type;
-  (void)args;
-  return NULL;
+  // TODO: translate from TypeScript to C++ 20
+  if (!api || !api->manager)
+    return NULL;
 }
 
 /* Creates a new IFC globally unique ID (stub). */
 extern "C" FFI_EXPORT char *ifc_api_create_ifc_globally_unique_id(IfcAPI *api,
-                                                                  int model_id)
+                                                                  uint32_t model_id)
 {
-  (void)api;
-  (void)model_id;
-  return NULL;
+  // TODO: translate from TypeScript to C++ 20
+  if (!api || !api->manager)
+    return NULL;
 }
 
 /* Creates a new IFC type (stub). */
 extern "C" FFI_EXPORT void *ifc_api_create_ifc_type(IfcAPI *api,
-                                                    int model_id,
+                                                    uint32_t model_id,
                                                     int type,
                                                     const void *value)
 {
-  (void)api;
-  (void)model_id;
-  (void)type;
-  (void)value;
-  return NULL;
+  // TODO: translate from TypeScript to C++ 20
+  if (!api || !api->manager)
+    return NULL;
 }
 
 /* Gets the name from a type code (stub). */
-extern "C" FFI_EXPORT const char *ifc_api_get_name_from_type_code(const IfcAPI *api,
-                                                                  int type)
+extern "C" FFI_EXPORT size_t ifc_api_get_name_from_type_code(const IfcAPI *api,
+                                                             uint32_t type,
+                                                             char *out)
 {
-  (void)api;
-  (void)type;
-  return NULL;
+  if (!api || !api->manager)
+    return NULL;
+  
+  std::string result = api->manager->GetSchemaManager().IfcTypeCodeToType(type);
+  return ffi_strdup(result, out);
 }
 
 /* Gets the type code from a name (stub). */
-extern "C" FFI_EXPORT int ifc_api_get_type_code_from_name(const IfcAPI *api,
-                                                          const char *type_name)
+extern "C" FFI_EXPORT uint32_t ifc_api_get_type_code_from_name(const IfcAPI *api,
+                                                               const char *type_name)
 {
-  (void)api;
-  (void)type_name;
-  return 0;
+  if (!api || !api->manager)
+    return NULL;
+  return api->manager->GetSchemaManager().IfcTypeToTypeCode(type_name);
 }
 
 /* Evaluates if a type is a subtype of IfcElement (stub). */
 extern "C" FFI_EXPORT bool ifc_api_is_ifc_element(const IfcAPI *api,
                                                   int type)
 {
-  (void)api;
-  (void)type;
-  return false;
+  if (!api || !api->manager)
+    return false;
+  return api->manager->GetSchemaManager().IsIfcElement(type);
 }
 
 /* Returns a list of all entity types present in the current schema (stub). */
 extern "C" FFI_EXPORT int *ifc_api_get_ifc_entity_list(const IfcAPI *api,
-                                                       int model_id,
+                                                       uint32_t model_id,
                                                        size_t *out_count)
 {
-  (void)api;
-  (void)model_id;
-  if (out_count)
-    *out_count = 0;
-  return NULL;
+  // TODO: translate from TypeScript to C++ 20
+  if (!api || !api->manager)
+    return NULL;
 }
 
 /* Deletes an IFC line (stub). */
 extern "C" FFI_EXPORT void ifc_api_delete_line(IfcAPI *api,
-                                               int model_id,
-                                               int expressID)
+                                               uint32_t model_id,
+                                               uint32_t expressID)
 {
-  (void)api;
-  (void)model_id;
-  (void)expressID;
+  if (!api || !api->manager)
+    return;
+
+  if (api->manager->IsModelOpen(model_id))
+    api->manager->GetIfcLoader(model_id)->RemoveLine(expressID);
+
+  api->deleted_lines[model_id].insert(expressID);
 }
 
 /* Writes multiple lines (stub). */
 extern "C" FFI_EXPORT void ifc_api_write_lines(IfcAPI *api,
-                                               int model_id,
+                                               uint32_t model_id,
                                                void **line_objects,
                                                size_t num_lines)
 {
-  if (!api || !api->manager || !line_objects)
+  // TODO: translate from TypeScript to C++ 20
+  if (!api || !api->manager)
     return;
-  using json = nlohmann::json;
-  for (size_t i = 0; i < num_lines; ++i)
-  {
-    RawLineData *raw = (RawLineData *)line_objects[i];
-    if (!raw)
-      continue;
-    /* TODO: convert raw->arguments (void**) into a proper json array.
-     * For now pass an empty parameter list to the underlying writer. */
-    json params = json::array();
-    WriteLine(api->manager, (uint32_t)model_id, (uint32_t)raw->ID, (uint32_t)raw->type, params);
-  }
 }
 
 /* Writes a single line (stub). */
 extern "C" FFI_EXPORT void ifc_api_write_line(IfcAPI *api,
-                                              int model_id,
+                                              uint32_t model_id,
                                               void *line_object)
 {
-  if (!api || !api->manager || !line_object)
+  // TODO: translate from TypeScript to C++ 20
+  if (!api || !api->manager)
     return;
-  RawLineData *data = (RawLineData *)line_object;
-  using json = nlohmann::json;
-  json params = json::array(); /* TODO: marshal data->arguments */
-  WriteLine(api->manager, (uint32_t)model_id, (uint32_t)data->ID, (uint32_t)data->type, params);
 }
 
 /* Gets all line IDs of a specific type (stub). */
 extern "C" FFI_EXPORT int *ifc_api_get_line_ids_with_type(const IfcAPI *api,
-                                                          int model_id,
+                                                          uint32_t model_id,
                                                           int type,
                                                           bool includeInherited,
                                                           size_t *out_count)
 {
+  // TODO: translate from TypeScript to C++ 20
   if (!api || !api->manager)
-  {
-    if (out_count)
-      *out_count = 0;
     return NULL;
-  }
-  using json = nlohmann::json;
-  json types = json::array();
-  types.push_back(type);
-  /* NOTE: InheritanceDef is a TypeScript-side data structure; full
-   * inheritance expansion is not currently implemented here. */
-  std::vector<uint32_t> ids = GetLineIDsWithType(api->manager, (uint32_t)model_id, types);
-  if (out_count)
-    *out_count = ids.size();
-  if (ids.empty())
-    return NULL;
-  int *result = (int *)malloc(sizeof(int) * ids.size());
-  for (size_t i = 0; i < ids.size(); ++i)
-    result[i] = static_cast<int>(ids[i]);
-  return result;
 }
 
 /* Gets all line IDs of a model (stub). */
-extern "C" FFI_EXPORT int *ifc_api_get_all_lines(const IfcAPI *api,
-                                                 int model_id,
-                                                 size_t *out_count)
+extern "C" FFI_EXPORT size_t ifc_api_get_all_lines(const IfcAPI *api,
+                                                   uint32_t model_id,
+                                                   uint32_t *out)
 {
   if (!api || !api->manager)
-  {
-    if (out_count)
-      *out_count = 0;
-    return NULL;
-  }
-  std::vector<uint32_t> lineIds = GetAllLines(api->manager, (uint32_t)model_id);
-  if (out_count)
-    *out_count = lineIds.size();
-  if (lineIds.empty())
-    return NULL;
-  int *result = (int *)malloc(sizeof(int) * lineIds.size());
-  for (size_t i = 0; i < lineIds.size(); ++i)
-    result[i] = static_cast<int>(lineIds[i]);
-  return result;
+    return 0;
+  if (!api->manager->IsModelOpen(model_id))
+    return 0;
+
+  std::vector<uint32_t> lineIds = api->manager->GetIfcLoader(model_id)->GetAllLines();
+  return ffi_strdup(lineIds, out);
 }
 
 /* Gets all 2D cross sections (stub). */
 extern "C" FFI_EXPORT CrossSection *ifc_api_get_all_cross_sections_2d(const IfcAPI *api,
-                                                                      int model_id,
+                                                                      uint32_t model_id,
                                                                       size_t *out_count)
 {
+  // TODO: translate from TypeScript to C++ 20
   if (!api || !api->manager)
-  {
-    if (out_count)
-      *out_count = 0;
     return NULL;
-  }
-  // Marshalling webifc::geometry::IfcCrossSections -> CrossSection is
-  // non-trivial. Provide a placeholder implementation that returns NULL
-  // and sets out_count to 0. This can be expanded later.
-  if (out_count)
-    *out_count = 0;
-  return NULL;
 }
 
 /* Gets all 3D cross sections (stub). */
 extern "C" FFI_EXPORT CrossSection *ifc_api_get_all_cross_sections_3d(const IfcAPI *api,
-                                                                      int model_id,
+                                                                      uint32_t model_id,
                                                                       size_t *out_count)
 {
+  // TODO: translate from TypeScript to C++ 20
   if (!api || !api->manager)
-  {
-    if (out_count)
-      *out_count = 0;
     return NULL;
-  }
-  if (out_count)
-    *out_count = 0;
-  return NULL;
 }
 
 /* Gets all alignments (stub). */
 extern "C" FFI_EXPORT AlignmentData *ifc_api_get_all_alignments(const IfcAPI *api,
-                                                                int model_id,
+                                                                uint32_t model_id,
                                                                 size_t *out_count)
 {
+  // TODO: translate from TypeScript to C++ 20
   if (!api || !api->manager)
-  {
-    if (out_count)
-      *out_count = 0;
     return NULL;
-  }
-  if (out_count)
-    *out_count = 0;
-  return NULL;
 }
 
 /* Sets the geometry transformation matrix (stub). */
 extern "C" FFI_EXPORT void ifc_api_set_geometry_transformation(IfcAPI *api,
-                                                               int model_id,
-                                                               const double *transformationMatrix)
+                                                               uint32_t model_id,
+                                                               const double transformationMatrix[16])
 {
   if (!api || !api->manager || !transformationMatrix)
     return;
+
   std::array<double, 16> m;
-  for (int i = 0; i < 16; ++i)
-    m[i] = transformationMatrix[i];
-  SetGeometryTransformation(api->manager, (uint32_t)model_id, m);
+  std::memcpy(m.data(), transformationMatrix, sizeof(m));
+
+  if (api->manager->IsModelOpen(model_id))
+    api->manager->GetGeometryProcessor(model_id)->SetTransformation(m);
 }
 
 /* Gets the coordination matrix (stub). */
 extern "C" FFI_EXPORT size_t ifc_api_get_coordination_matrix(const IfcAPI *api,
-                                                              int model_id,
-                                                              double *out)
+                                                             uint32_t model_id,
+                                                             double *out)
 {
   if (!api || !api->manager)
     return 0;
   if (!api->manager->IsModelOpen(model_id))
     return 0;
   std::array<double, 16> arr = api->manager->GetGeometryProcessor(model_id)->GetFlatCoordinationMatrix();
-  return ffi_strdup(arr,  out);
+  return ffi_strdup(arr, out);
 }
 
 /* Closes a model (stub). */
 extern "C" FFI_EXPORT void ifc_api_close_model(IfcAPI *api,
-                                               int model_id)
+                                               uint32_t model_id)
 {
   if (!api || !api->manager)
     return;
-  if ((int)api->guid_to_id.size() > model_id)
-    api->guid_to_id[model_id].clear();
-  if ((int)api->id_to_guid.size() > model_id)
-    api->id_to_guid[model_id].clear();
+  // Erase per-model guid maps if present (unordered_map keyed by model_id)
+  api->guid_to_id.erase(model_id);
+  api->id_to_guid.erase(model_id);
   api->manager->CloseModel(model_id);
 }
 
@@ -679,7 +624,7 @@ extern "C" FFI_EXPORT void ifc_api_dispose(IfcAPI *api)
 
 /* Streams meshes with specific express IDs (stub). */
 extern "C" FFI_EXPORT void ifc_api_stream_meshes(const IfcAPI *api,
-                                                 int model_id,
+                                                 uint32_t model_id,
                                                  const int *expressIDs,
                                                  size_t num_ids,
                                                  IfcMeshCallback mesh_cb, //    meshCallback: (mesh: FlatMesh, index: number, total: number) => void
@@ -693,7 +638,7 @@ extern "C" FFI_EXPORT void ifc_api_stream_meshes(const IfcAPI *api,
 
 /* Streams all meshes of a model (stub). */
 extern "C" FFI_EXPORT void ifc_api_stream_all_meshes(const IfcAPI *api,
-                                                     int model_id,
+                                                     uint32_t model_id,
                                                      IfcMeshCallback mesh_cb, //    meshCallback: (mesh: FlatMesh, index: number, total: number) => void
                                                      void *user_data)
 {
@@ -704,7 +649,7 @@ extern "C" FFI_EXPORT void ifc_api_stream_all_meshes(const IfcAPI *api,
 
 /* Streams all meshes with types (stub). */
 extern "C" FFI_EXPORT void ifc_api_stream_all_meshes_with_types(const IfcAPI *api,
-                                                                int model_id,
+                                                                uint32_t model_id,
                                                                 const int *types,
                                                                 size_t num_types,
                                                                 IfcMeshCallback mesh_cb, //    meshCallback: (mesh: FlatMesh, index: number, total: number) => void
@@ -717,7 +662,7 @@ extern "C" FFI_EXPORT void ifc_api_stream_all_meshes_with_types(const IfcAPI *ap
 
 /* Checks if a model is open (stub). */
 extern "C" FFI_EXPORT bool ifc_api_is_model_open(const IfcAPI *api,
-                                                 int model_id)
+                                                 uint32_t model_id)
 {
   if (!api || !api->manager)
     return false;
@@ -726,7 +671,7 @@ extern "C" FFI_EXPORT bool ifc_api_is_model_open(const IfcAPI *api,
 
 /* Loads all geometry in a model (stub). */
 extern "C" FFI_EXPORT FlatMesh **ifc_api_load_all_geometry(const IfcAPI *api,
-                                                           int model_id,
+                                                           uint32_t model_id,
                                                            size_t *out_count)
 {
   // TODO: translate from TypeScript to C++ 20
@@ -736,8 +681,8 @@ extern "C" FFI_EXPORT FlatMesh **ifc_api_load_all_geometry(const IfcAPI *api,
 
 /* Loads geometry for a single element (stub). */
 extern "C" FFI_EXPORT FlatMesh *ifc_api_get_flat_mesh(const IfcAPI *api,
-                                                      int model_id,
-                                                      int expressID)
+                                                      uint32_t model_id,
+                                                      uint32_t expressID)
 {
   // TODO: translate from TypeScript to C++ 20
   if (!api || !api->manager)
@@ -753,7 +698,7 @@ extern "C" FFI_EXPORT FlatMesh *ifc_api_get_flat_mesh(const IfcAPI *api,
 
 /* Gets the maximum express ID (stub). */
 extern "C" FFI_EXPORT uint32_t ifc_api_get_max_express_id(const IfcAPI *api,
-                                                          int model_id)
+                                                          uint32_t model_id)
 {
   if (!api || !api->manager)
     return 0;
@@ -762,8 +707,8 @@ extern "C" FFI_EXPORT uint32_t ifc_api_get_max_express_id(const IfcAPI *api,
 
 /* Gets the line type (stub). */
 extern "C" FFI_EXPORT uint32_t ifc_api_get_line_type(const IfcAPI *api,
-                                                     int model_id,
-                                                     int expressID)
+                                                     uint32_t model_id,
+                                                     uint32_t expressID)
 {
   if (!api || !api->manager)
     return 0;
@@ -841,7 +786,7 @@ extern "C" FFI_EXPORT size_t ifc_api_get_version(const IfcAPI *api, char *out)
 
 /* Looks up express ID from GUID. Returns 0 if not found. */
 extern "C" FFI_EXPORT int ifc_api_get_express_id_from_guid(const IfcAPI *api,
-                                                           int model_id,
+                                                           uint32_t model_id,
                                                            const char *guid)
 {
   // TODO: translate from TypeScript to C++ 20
@@ -864,8 +809,8 @@ extern "C" FFI_EXPORT int ifc_api_get_express_id_from_guid(const IfcAPI *api,
  * string is owned by the API instance and remains valid until the model is
  * closed or the API is freed. */
 extern "C" FFI_EXPORT const char *ifc_api_get_guid_from_express_id(const IfcAPI *api,
-                                                                   int model_id,
-                                                                   int expressID)
+                                                                   uint32_t model_id,
+                                                                   uint32_t expressID)
 {
   // TODO: translate from TypeScript to C++ 20
   if (!api)
@@ -933,7 +878,7 @@ extern "C" FFI_EXPORT size_t ifc_api_decode_text(const IfcAPI *api,
 
 /* Resets the cached IFC data (stub). */
 extern "C" FFI_EXPORT void ifc_api_reset_cache(const IfcAPI *api,
-                                               int model_id)
+                                               uint32_t model_id)
 {
   if (!api)
     return;

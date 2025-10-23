@@ -1,4 +1,5 @@
 #include <array>
+#include <vector>
 #include <cstddef>
 #include <cstring>
 #include <string>
@@ -48,5 +49,18 @@ template <class T, std::size_t N>
   constexpr std::size_t bytes = sizeof(T) * N;
   if (!out) return bytes;           // preflight
   if (bytes) std::memcpy(out, src.data(), bytes);
+  return bytes;
+}
+
+// ------------------------- std::vector<T>
+
+// Copies vector contents into out (contiguous). Returns total bytes written
+// (vec.size() * sizeof(T)). If out == nullptr returns required bytes.
+template <class T>
+[[nodiscard]] inline std::size_t ffi_strdup(const std::vector<T>& vec, T* out) noexcept {
+  static_assert(std::is_trivially_copyable_v<T>, "FFI: T must be trivially copyable");
+  const std::size_t bytes = sizeof(T) * vec.size();
+  if (!out) return bytes; // preflight
+  if (bytes) std::memcpy(out, vec.data(), bytes);
   return bytes;
 }

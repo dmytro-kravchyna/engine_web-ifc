@@ -188,7 +188,7 @@ extern "C"
     typedef struct FlatMesh
     {
         PlacedGeometryVector geometries;
-        int expressID;
+        uint32_t expressID;
         void (*destroy)(struct FlatMesh *self); /* optional */
     } FlatMesh;
 
@@ -644,7 +644,7 @@ extern "C"
      *          the API and must not be freed by the caller.  NULL is
      *          returned if the schema is unknown.
      */
-    FFI_EXPORT const char *ifc_api_get_model_schema(const IfcAPI *api, int model_id);
+    FFI_EXPORT const char *ifc_api_get_model_schema(const IfcAPI *api, uint32_t model_id);
 
     /**
      * Creates a new model and returns a modelID number.
@@ -670,7 +670,7 @@ extern "C"
      *          *out_size is set to zero.
      */
     FFI_EXPORT uint8_t *ifc_api_save_model(const IfcAPI *api,
-                                           int model_id,
+                                           uint32_t model_id,
                                            size_t *out_size);
 
     /**
@@ -685,7 +685,7 @@ extern "C"
      * @param save_cb_user_data User supplied pointer passed back to the callback.
      */
     FFI_EXPORT void ifc_api_save_model_to_callback(const IfcAPI *api,
-                                                   int model_id,
+                                                   uint32_t model_id,
                                                    ModelSaveCallback save_cb,
                                                    void *save_cb_user_data);
 
@@ -702,7 +702,7 @@ extern "C"
      *          the destroy function on the returned object when done.
      */
     FFI_EXPORT IfcGeometry *ifc_api_get_geometry(const IfcAPI *api,
-                                                 int model_id,
+                                                 uint32_t model_id,
                                                  int geometryExpressID);
 
     /**
@@ -814,7 +814,7 @@ extern "C"
      *          arguments_len equal to zero.
      */
     FFI_EXPORT RawLineData ifc_api_get_header_line(const IfcAPI *api,
-                                                   int model_id,
+                                                   uint32_t model_id,
                                                    int headerType);
 
     /**
@@ -829,7 +829,7 @@ extern "C"
      *          NULL and sets *out_count to zero.
      */
     FFI_EXPORT IfcType *ifc_api_get_all_types_of_model(const IfcAPI *api,
-                                                       int model_id,
+                                                       uint32_t model_id,
                                                        size_t *out_count);
 
     /**
@@ -846,8 +846,8 @@ extern "C"
      *          their own data structures.  NULL is returned on error.
      */
     FFI_EXPORT void *ifc_api_get_line(const IfcAPI *api,
-                                      int model_id,
-                                      int expressID,
+                                      uint32_t model_id,
+                                      uint32_t expressID,
                                       bool flatten,
                                       bool inverse,
                                       const char *inversePropKey);
@@ -869,7 +869,7 @@ extern "C"
      *          to zero.
      */
     FFI_EXPORT void **ifc_api_get_lines(const IfcAPI *api,
-                                        int model_id,
+                                        uint32_t model_id,
                                         const int *expressIDs,
                                         size_t num_ids,
                                         bool flatten,
@@ -886,8 +886,8 @@ extern "C"
      * @returns The next unused express ID starting from the value provided.
      */
     FFI_EXPORT int ifc_api_get_next_express_id(const IfcAPI *api,
-                                               int model_id,
-                                               int expressID);
+                                               uint32_t model_id,
+                                               uint32_t expressID);
 
     /**
      * Creates a new IFC entity of the specified type.
@@ -903,7 +903,7 @@ extern "C"
      *          or NULL on error.
      */
     FFI_EXPORT void *ifc_api_create_ifc_entity(IfcAPI *api,
-                                               int model_id,
+                                               uint32_t model_id,
                                                int type,
                                                void *args);
 
@@ -916,7 +916,7 @@ extern "C"
      *          The returned string is malloc'd and must be freed by the caller.
      */
     FFI_EXPORT char *ifc_api_create_ifc_globally_unique_id(IfcAPI *api,
-                                                           int model_id);
+                                                           uint32_t model_id);
 
     /**
      * Creates a new IFC type, such as IfcLabel or IfcReal.
@@ -930,21 +930,27 @@ extern "C"
      * @returns A pointer to an opaque IFC type object, or NULL on error.
      */
     FFI_EXPORT void *ifc_api_create_ifc_type(IfcAPI *api,
-                                             int model_id,
+                                             uint32_t model_id,
                                              int type,
                                              const void *value);
 
     /**
      * Gets the name corresponding to a type code.
      *
+     * Writes the type name as a NULL‑terminated UTF‑8 string into the
+     * caller-supplied buffer `out`. If `out` is NULL the function returns the
+     * number of bytes required to hold the string (excluding the trailing NUL).
+     * On success the function returns the number of bytes written (excluding
+     * the trailing NUL).
+     *
      * @param api  API context pointer created with ifc_api_new.
      * @param type IFC type code.
-     * @returns The name associated with the type code.  The returned string is
-     *          owned by the API and must not be freed by the caller.  NULL is
-     *          returned if the name could not be found.
+     * @param out  Caller-supplied buffer to receive the name, or NULL for preflight.
+     * @returns Number of bytes written or required; zero on error or if the type is unknown.
      */
-    FFI_EXPORT const char *ifc_api_get_name_from_type_code(const IfcAPI *api,
-                                                           int type);
+    FFI_EXPORT size_t ifc_api_get_name_from_type_code(const IfcAPI *api,
+                                                      uint32_t type,
+                                                      char *out);
 
     /**
      * Gets the type code from a type name.
@@ -953,7 +959,7 @@ extern "C"
      * @param type_name UTF‑8 string containing the type name.
      * @returns The type code corresponding to the name, or 0 if not found.
      */
-    FFI_EXPORT int ifc_api_get_type_code_from_name(const IfcAPI *api,
+    FFI_EXPORT uint32_t ifc_api_get_type_code_from_name(const IfcAPI *api,
                                                    const char *type_name);
 
     /**
@@ -977,7 +983,7 @@ extern "C"
      *          function returns NULL and sets *out_count to zero.
      */
     FFI_EXPORT int *ifc_api_get_ifc_entity_list(const IfcAPI *api,
-                                                int model_id,
+                                                uint32_t model_id,
                                                 size_t *out_count);
 
     /**
@@ -988,8 +994,8 @@ extern "C"
      * @param expressID Express ID of the line to remove.
      */
     FFI_EXPORT void ifc_api_delete_line(IfcAPI *api,
-                                        int model_id,
-                                        int expressID);
+                                        uint32_t model_id,
+                                        uint32_t expressID);
 
     /**
      * Writes a set of lines to the model, which can be used to write new lines
@@ -1001,7 +1007,7 @@ extern "C"
      * @param num_lines Number of objects in the line_objects array.
      */
     FFI_EXPORT void ifc_api_write_lines(IfcAPI *api,
-                                        int model_id,
+                                        uint32_t model_id,
                                         void **line_objects,
                                         size_t num_lines);
 
@@ -1014,7 +1020,7 @@ extern "C"
      * @param line_object Pointer to an opaque line object to write.
      */
     FFI_EXPORT void ifc_api_write_line(IfcAPI *api,
-                                       int model_id,
+                                       uint32_t model_id,
                                        void *line_object);
 
     /**
@@ -1030,7 +1036,7 @@ extern "C"
      *          returns NULL and sets *out_count to zero.
      */
     FFI_EXPORT int *ifc_api_get_line_ids_with_type(const IfcAPI *api,
-                                                   int model_id,
+                                                   uint32_t model_id,
                                                    int type,
                                                    bool includeInherited,
                                                    size_t *out_count);
@@ -1045,9 +1051,23 @@ extern "C"
      *          for freeing the returned array.  If no IDs are found the function
      *          returns NULL and sets *out_count to zero.
      */
-    FFI_EXPORT int *ifc_api_get_all_lines(const IfcAPI *api,
-                                          int model_id,
-                                          size_t *out_count);
+    /**
+     * Gets all line IDs of a model.
+     *
+     * Writes the list of line IDs into the caller-supplied buffer `out` as
+     * 32-bit signed integers. If `out` is NULL the function returns the
+     * number of bytes required to hold the list (preflight). On success the
+     * function returns the number of bytes written. The out_count parameter
+     * receives the number of elements (not bytes) when non-NULL.
+     *
+     * @param api      API context pointer created with ifc_api_new.
+     * @param model_id Model handle retrieved by OpenModel.
+     * @param out      Caller-supplied buffer to receive the int array, or NULL for preflight.
+     * @returns Number of bytes written or required; zero on error.
+     */
+    FFI_EXPORT size_t ifc_api_get_all_lines(const IfcAPI *api,
+                                           uint32_t model_id,
+                                           uint32_t *out);
 
     /**
      * Returns all cross sections in 2D contained in IFCSECTIONEDSOLID,
@@ -1062,7 +1082,7 @@ extern "C"
      *          *out_count to zero.
      */
     FFI_EXPORT CrossSection *ifc_api_get_all_cross_sections_2d(const IfcAPI *api,
-                                                               int model_id,
+                                                               uint32_t model_id,
                                                                size_t *out_count);
 
     /**
@@ -1078,7 +1098,7 @@ extern "C"
      *          returns NULL and sets *out_count to zero.
      */
     FFI_EXPORT CrossSection *ifc_api_get_all_cross_sections_3d(const IfcAPI *api,
-                                                               int model_id,
+                                                               uint32_t model_id,
                                                                size_t *out_count);
 
     /**
@@ -1093,21 +1113,24 @@ extern "C"
      *          *out_count to zero.
      */
     FFI_EXPORT AlignmentData *ifc_api_get_all_alignments(const IfcAPI *api,
-                                                         int model_id,
+                                                         uint32_t model_id,
                                                          size_t *out_count);
 
     /**
      * Sets the transformation matrix for geometry.
      *
+     * This function requires a fixed-size flat 4x4 matrix supplied as an array
+     * of 16 doubles. The function signature documents the fixed-size array so
+     * callers on the C side may pass a `double m[16]` buffer directly. The
+     * function will have no effect if a NULL pointer is supplied.
+     *
      * @param api                 API context pointer created with ifc_api_new.
      * @param model_id            Model handle retrieved by OpenModel.
-     * @param transformationMatrix Flat 4x4 matrix as an array of 16 numbers.  The
-     *                             array must have length 16.  If an invalid
-     *                             length is provided the function has no effect.
+     * @param transformationMatrix Flat 4x4 matrix as an array of 16 doubles.
      */
     FFI_EXPORT void ifc_api_set_geometry_transformation(IfcAPI *api,
-                                                        int model_id,
-                                                        const double *transformationMatrix);
+                                                        uint32_t model_id,
+                                                        const double transformationMatrix[16]);
 
     /**
      * Gets the coordination matrix for a model.
@@ -1123,7 +1146,7 @@ extern "C"
      * @returns Number of bytes written or required; zero on error.
      */
     FFI_EXPORT size_t ifc_api_get_coordination_matrix(const IfcAPI *api,
-                                                      int model_id,
+                                                      uint32_t model_id,
                                                       double *out);
 
     /**
@@ -1134,7 +1157,7 @@ extern "C"
      *                 closed after use.
      */
     FFI_EXPORT void ifc_api_close_model(IfcAPI *api,
-                                        int model_id);
+                                        uint32_t model_id);
 
     /**
      * Closes all models and frees all related memory.  Please note that after
@@ -1160,7 +1183,7 @@ extern "C"
      */
     typedef void (*IfcMeshCallback)(const FlatMesh *mesh, size_t index, size_t total, void *user_data);
     FFI_EXPORT void ifc_api_stream_meshes(const IfcAPI *api,
-                                          int model_id,
+                                          uint32_t model_id,
                                           const int *expressIDs,
                                           size_t num_ids,
                                           IfcMeshCallback mesh_cb,
@@ -1178,7 +1201,7 @@ extern "C"
      * @param user_data User supplied pointer passed back to the callback.
      */
     FFI_EXPORT void ifc_api_stream_all_meshes(const IfcAPI *api,
-                                              int model_id,
+                                              uint32_t model_id,
                                               IfcMeshCallback mesh_cb,
                                               void *user_data);
 
@@ -1196,7 +1219,7 @@ extern "C"
      * @param user_data User supplied pointer passed back to the callback.
      */
     FFI_EXPORT void ifc_api_stream_all_meshes_with_types(const IfcAPI *api,
-                                                         int model_id,
+                                                         uint32_t model_id,
                                                          const int *types,
                                                          size_t num_types,
                                                          IfcMeshCallback mesh_cb,
@@ -1210,7 +1233,7 @@ extern "C"
      * @returns true if the model is open; false if it is closed.
      */
     FFI_EXPORT bool ifc_api_is_model_open(const IfcAPI *api,
-                                          int model_id);
+                                          uint32_t model_id);
 
     /**
      * Loads all geometry in a model.
@@ -1224,7 +1247,7 @@ extern "C"
      *          loaded the function returns NULL and sets *out_count to zero.
      */
     FFI_EXPORT FlatMesh **ifc_api_load_all_geometry(const IfcAPI *api,
-                                                    int model_id,
+                                                    uint32_t model_id,
                                                     size_t *out_count);
 
     /**
@@ -1238,8 +1261,8 @@ extern "C"
      *          finished.
      */
     FFI_EXPORT FlatMesh *ifc_api_get_flat_mesh(const IfcAPI *api,
-                                               int model_id,
-                                               int expressID);
+                                               uint32_t model_id,
+                                               uint32_t expressID);
 
     /**
      * Returns the maximum ExpressID value in the IFC file (e.g. #9999999).
@@ -1249,7 +1272,7 @@ extern "C"
      * @returns The maximum express ID value.
      */
     FFI_EXPORT uint32_t ifc_api_get_max_express_id(const IfcAPI *api,
-                                                   int model_id);
+                                                   uint32_t model_id);
 
     /**
      * Returns the IFC type of a given entity in the file.
@@ -1260,8 +1283,8 @@ extern "C"
      * @returns IFC type code for the line, or 0 if unknown.
      */
     FFI_EXPORT uint32_t ifc_api_get_line_type(const IfcAPI *api,
-                                              int model_id,
-                                              int expressID);
+                                              uint32_t model_id,
+                                              uint32_t expressID);
 
     /**
      * Returns the version number of web-ifc.
@@ -1287,7 +1310,7 @@ extern "C"
      *          found.
      */
     FFI_EXPORT int ifc_api_get_express_id_from_guid(const IfcAPI *api,
-                                                    int model_id,
+                                                    uint32_t model_id,
                                                     const char *guid);
 
     /**
@@ -1301,8 +1324,8 @@ extern "C"
      *          freed by the caller.
      */
     FFI_EXPORT const char *ifc_api_get_guid_from_express_id(const IfcAPI *api,
-                                                            int model_id,
-                                                            int expressID);
+                                                            uint32_t model_id,
+                                                            uint32_t expressID);
 
     /**
      * Sets the path to the wasm file used by the underlying WebIFCWasm module.
@@ -1372,7 +1395,7 @@ extern "C"
      *          freeing the returned string.
      */
     FFI_EXPORT void ifc_api_reset_cache(const IfcAPI *api,
-                                        int model_id);
+                                        uint32_t model_id);
 
 #ifdef __cplusplus
 } /* extern "C" */
