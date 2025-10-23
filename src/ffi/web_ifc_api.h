@@ -148,8 +148,7 @@ typedef struct {
 typedef struct {
     Color   color;
     int     geometryExpressID;
-    double* flatTransformation;      /* e.g., 16 elements for 4x4 */
-    size_t  flatTransformation_len;
+    double  flatTransformation[16];  /* row-major 4x4 matrix */
 } PlacedGeometry;
 
 typedef struct {
@@ -1170,7 +1169,7 @@ FFI_EXPORT FlatMesh *ifc_api_get_flat_mesh(const IfcAPI *api,
  * @param model_id Model handle retrieved by OpenModel.
  * @returns The maximum express ID value.
  */
-FFI_EXPORT int ifc_api_get_max_express_id(const IfcAPI *api,
+FFI_EXPORT uint32_t ifc_api_get_max_express_id(const IfcAPI *api,
                               int model_id);
 
 /**
@@ -1181,7 +1180,7 @@ FFI_EXPORT int ifc_api_get_max_express_id(const IfcAPI *api,
  * @param expressID Express ID of the line.
  * @returns IFC type code for the line, or 0 if unknown.
  */
-FFI_EXPORT int ifc_api_get_line_type(const IfcAPI *api,
+FFI_EXPORT uint32_t ifc_api_get_line_type(const IfcAPI *api,
                           int model_id,
                           int expressID);
 
