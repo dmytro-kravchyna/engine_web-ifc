@@ -59,56 +59,6 @@
  * (if any) are restored when compilation of this file completes.
  */
 
-#ifdef STRING
-#pragma push_macro("STRING")
-#undef STRING
-#endif
-#ifdef ENUM
-#pragma push_macro("ENUM")
-#undef ENUM
-#endif
-#ifdef REF
-#pragma push_macro("REF")
-#undef REF
-#endif
-#ifdef REAL
-#pragma push_macro("REAL")
-#undef REAL
-#endif
-#ifdef INTEGER
-#pragma push_macro("INTEGER")
-#undef INTEGER
-#endif
-#ifdef SET_BEGIN
-#pragma push_macro("SET_BEGIN")
-#undef SET_BEGIN
-#endif
-#ifdef SET_END
-#pragma push_macro("SET_END")
-#undef SET_END
-#endif
-#ifdef EMPTY
-#pragma push_macro("EMPTY")
-#undef EMPTY
-#endif
-
-// Token macros from web_ifc_api.h that collide with enumeration constants
-// inside webifc::parsing::IfcTokenType.  These include LABEL, UNKNOWN
-// and LINE_END, in addition to those handled above (STRING, ENUM, REF,
-// REAL, INTEGER, SET_BEGIN, SET_END, EMPTY).
-#ifdef LABEL
-#pragma push_macro("LABEL")
-#undef LABEL
-#endif
-#ifdef UNKNOWN
-#pragma push_macro("UNKNOWN")
-#undef UNKNOWN
-#endif
-#ifdef LINE_END
-#pragma push_macro("LINE_END")
-#undef LINE_END
-#endif
-
 namespace webifc::parsing
 {
     void p21encode(std::string_view input, std::ostringstream &output);
@@ -228,9 +178,7 @@ void SaveModel(webifc::manager::ModelManager *manager,
  */
 int GetModelSize(webifc::manager::ModelManager *manager, uint32_t modelID)
 {
-    return manager->IsModelOpen(modelID) ?
-               manager->GetIfcLoader(modelID)->GetTotalSize() :
-               0;
+    return manager->IsModelOpen(modelID) ? manager->GetIfcLoader(modelID)->GetTotalSize() : 0;
 }
 
 // Close a single model by ID.
@@ -531,9 +479,7 @@ webifc::geometry::IfcGeometry GetGeometry(webifc::manager::ModelManager *manager
                                           uint32_t modelID,
                                           uint32_t expressID)
 {
-    return manager->IsModelOpen(modelID) ?
-               manager->GetGeometryProcessor(modelID)->GetGeometry(expressID) :
-               webifc::geometry::IfcGeometry();
+    return manager->IsModelOpen(modelID) ? manager->GetGeometryProcessor(modelID)->GetGeometry(expressID) : webifc::geometry::IfcGeometry();
 }
 
 // Get cross sections (2D or 3D) for the specified IFC solids.
@@ -674,9 +620,7 @@ void SetGeometryTransformation(webifc::manager::ModelManager *manager,
 std::array<double, 16> GetCoordinationMatrix(webifc::manager::ModelManager *manager,
                                              uint32_t modelID)
 {
-    return manager->IsModelOpen(modelID) ?
-               manager->GetGeometryProcessor(modelID)->GetFlatCoordinationMatrix() :
-               std::array<double, 16>();
+    return manager->IsModelOpen(modelID) ? manager->GetGeometryProcessor(modelID)->GetFlatCoordinationMatrix() : std::array<double, 16>();
 }
 
 // Helper to convert a JSON array of type codes into a flat vector of
@@ -829,9 +773,7 @@ bool ValidateExpressID(webifc::manager::ModelManager *manager,
                        uint32_t modelID,
                        uint32_t expressId)
 {
-    return manager->IsModelOpen(modelID) ?
-               manager->GetIfcLoader(modelID)->IsValidExpressID(expressId) :
-               false;
+    return manager->IsModelOpen(modelID) ? manager->GetIfcLoader(modelID)->IsValidExpressID(expressId) : false;
 }
 
 // Get the next express ID following the specified one.  Returns zero
@@ -851,9 +793,7 @@ uint32_t GetNextExpressID(webifc::manager::ModelManager *manager,
                           uint32_t modelID,
                           uint32_t expressId)
 {
-    return manager->IsModelOpen(modelID) ?
-               manager->GetIfcLoader(modelID)->GetNextExpressID(expressId) :
-               0;
+    return manager->IsModelOpen(modelID) ? manager->GetIfcLoader(modelID)->GetNextExpressID(expressId) : 0;
 }
 
 // Retrieve all line IDs in the model.  Returns an empty list if the
@@ -871,9 +811,7 @@ uint32_t GetNextExpressID(webifc::manager::ModelManager *manager,
 std::vector<uint32_t> GetAllLines(webifc::manager::ModelManager *manager,
                                   uint32_t modelID)
 {
-    return manager->IsModelOpen(modelID) ?
-               manager->GetIfcLoader(modelID)->GetAllLines() :
-               std::vector<uint32_t>();
+    return manager->IsModelOpen(modelID) ? manager->GetIfcLoader(modelID)->GetAllLines() : std::vector<uint32_t>();
 }
 
 // Write a single value to the loader based on the expected token type.
@@ -1368,9 +1306,7 @@ uint32_t GetLineType(webifc::manager::ModelManager *manager,
                      uint32_t modelID,
                      uint32_t expressID)
 {
-    return manager->IsModelOpen(modelID) ?
-               manager->GetIfcLoader(modelID)->GetLineType(expressID) :
-               0;
+    return manager->IsModelOpen(modelID) ? manager->GetIfcLoader(modelID)->GetLineType(expressID) : 0;
 }
 
 // Write a header line into the loader.  The parameters argument is a
@@ -1504,7 +1440,7 @@ std::string GetVersion()
  * @return A GUID string or empty if the model is closed.
  */
 std::string GenerateGuid(webifc::manager::ModelManager *manager,
-                          uint32_t modelID)
+                         uint32_t modelID)
 {
     if (!manager->IsModelOpen(modelID))
         return std::string();
@@ -1525,9 +1461,7 @@ std::string GenerateGuid(webifc::manager::ModelManager *manager,
 uint32_t GetMaxExpressID(webifc::manager::ModelManager *manager,
                          uint32_t modelID)
 {
-    return manager->IsModelOpen(modelID) ?
-               manager->GetIfcLoader(modelID)->GetMaxExpressId() :
-               0;
+    return manager->IsModelOpen(modelID) ? manager->GetIfcLoader(modelID)->GetMaxExpressId() : 0;
 }
 
 // Determine whether a model is open.
