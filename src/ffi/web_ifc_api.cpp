@@ -40,7 +40,10 @@
 #include <web-ifc/geometry/operations/bim-geometry/boolean.h>
 #include <web-ifc/geometry/operations/bim-geometry/profile.h>
 
+#define LOG_HEADER_IMPLEMENTATION
+#include "helpers/log.h"
 #include "helpers/web_ifc_wasm.cpp"
+#include "helpers/strdup.cpp"
 
 /*
  * This source file provides stub implementations for the C API defined
@@ -104,27 +107,6 @@ struct IfcAPI
   std::vector<std::unordered_map<std::string, int>> guid_to_id;
   std::vector<std::unordered_map<int, std::string>> id_to_guid;
 };
-
-// Helper: allocate a C string with malloc and copy the contents of a std::string.
-// Returns NULL if allocation fails. Caller owns the returned pointer and must free().
-static inline char *strdup(const std::string &s)
-{
-  char *out = (char *)malloc(s.size() + 1);
-  if (!out)
-    return NULL;
-  memcpy(out, s.c_str(), s.size() + 1);
-  return out;
-}
-
-static inline char *strdup(const std::string_view &s)
-{
-  char *out = (char *)malloc(s.size() + 1);
-  if (!out)
-    return NULL;
-  memcpy(out, s.data(), s.size() + 1);
-  return out;
-  return out;
-}
 
 /* Create a new API object.  Allocates an IfcAPI structure and zeroes
  * its fields. */
@@ -659,28 +641,16 @@ extern "C" FFI_EXPORT void ifc_api_set_geometry_transformation(IfcAPI *api,
 }
 
 /* Gets the coordination matrix (stub). */
-extern "C" FFI_EXPORT double *ifc_api_get_coordination_matrix(const IfcAPI *api,
+extern "C" FFI_EXPORT size_t ifc_api_get_coordination_matrix(const IfcAPI *api,
                                                               int model_id,
-                                                              size_t *out_len)
+                                                              double *out)
 {
   if (!api || !api->manager)
-  {
-    if (out_len)
-      *out_len = 0;
-    return NULL;
-  }
-  std::array<double, 16> arr = api->manager->IsModelOpen(model_id) ? api->manager->GetGeometryProcessor(model_id)->GetFlatCoordinationMatrix() : std::array<double, 16>();
-  if (out_len)
-    *out_len = 16;
-  double *out = (double *)malloc(sizeof(double) * 16);
-  if (!out) {
-    if (out_len)
-      *out_len = 0;
-    return NULL;
-  }
-  for (size_t i = 0; i < 16; ++i)
-    out[i] = arr[i];
-  return out;
+    return 0;
+  if (!api->manager->IsModelOpen(model_id))
+    return 0;
+  std::array<double, 16> arr = api->manager->GetGeometryProcessor(model_id)->GetFlatCoordinationMatrix();
+  return ffi_strdup(arr,  out);
 }
 
 /* Closes a model (stub). */
@@ -743,7 +713,6 @@ extern "C" FFI_EXPORT void ifc_api_stream_all_meshes_with_types(const IfcAPI *ap
   // TODO: translate from TypeScript to C++ 20
   if (!api || !api->manager)
     return;
-  
 }
 
 /* Checks if a model is open (stub). */
@@ -770,10 +739,10 @@ extern "C" FFI_EXPORT FlatMesh *ifc_api_get_flat_mesh(const IfcAPI *api,
                                                       int model_id,
                                                       int expressID)
 {
-   // TODO: translate from TypeScript to C++ 20
+  // TODO: translate from TypeScript to C++ 20
   if (!api || !api->manager)
     return {};
-  
+
   // if (!api->manager->IsModelOpen(model_id))
   //   return {};
   // webifc::geometry::IfcFlatMesh mesh = api->manager->GetGeometryProcessor(model_id)->GetFlatMesh(expressID);
@@ -802,9 +771,9 @@ extern "C" FFI_EXPORT uint32_t ifc_api_get_line_type(const IfcAPI *api,
 }
 
 /* Gets the version of web-ifc (stub). */
-extern "C" FFI_EXPORT const char *ifc_api_get_version(const IfcAPI *api)
+extern "C" FFI_EXPORT size_t ifc_api_get_version(const IfcAPI *api, char *out)
 {
-  return strdup(WEB_IFC_VERSION_NUMBER);
+  return ffi_strdup(WEB_IFC_VERSION_NUMBER, out);
 }
 
 // // Build GUID maps for a model. This inspects all entity types, reads the
@@ -935,29 +904,31 @@ extern "C" FFI_EXPORT void ifc_api_set_log_level(IfcAPI *api,
 }
 
 /* Encodes text using IFC encoding (stub). */
-extern "C" FFI_EXPORT char *ifc_api_encode_text(const IfcAPI *api,
-                                                const char *text)
+extern "C" FFI_EXPORT size_t ifc_api_encode_text(const IfcAPI *api,
+                                                 const char *text,
+                                                 char *out)
 {
   if (!api || !text)
-    return NULL;
+    return 0;
 
   const std::string_view strView{text};
   std::ostringstream output;
   webifc::parsing::p21encode(strView, output);
   std::string encoded = output.str();
-  return strdup(encoded);
+  return ffi_strdup(encoded, out);
 }
 
 /* Decodes text using IFC encoding (stub). */
-extern "C" FFI_EXPORT char *ifc_api_decode_text(const IfcAPI *api,
-                                                const char *text)
+extern "C" FFI_EXPORT size_t ifc_api_decode_text(const IfcAPI *api,
+                                                 const char *text,
+                                                 char *out)
 {
   if (!api || !text)
-    return NULL;
+    return 0;
 
   std::string_view sv{text};
   std::string decoded = webifc::parsing::p21decode(const_cast<std::string_view &>(sv));
-  return strdup(decoded);
+  return ffi_strdup(decoded, out);
 }
 
 /* Resets the cached IFC data (stub). */

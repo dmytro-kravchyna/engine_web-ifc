@@ -100,6 +100,7 @@ endif()
 # -----------------------------------------------------------------------------
 set(WEB_IFC_API_SOURCES
   ${CMAKE_CURRENT_LIST_DIR}/web_ifc_api.cpp
+  ${CMAKE_CURRENT_LIST_DIR}/helpers/log.cpp
 )
 
 set(WEB_IFC_API_PUBLIC_HEADERS

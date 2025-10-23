@@ -3,7 +3,6 @@
 #include <cstring>
 #include <cerrno>
 
-#define LOG_HEADER_IMPLEMENTATION
 #include "../helpers/log.h"
 
 #define ASSERT(cond, msg) do { \
