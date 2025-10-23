@@ -241,94 +241,109 @@ extern "C" FFI_EXPORT IfcGeometry *ifc_api_get_geometry(const IfcAPI *api,
                                                         uint32_t model_id,
                                                         int geometryExpressID)
 {
-  (void)api;
-  (void)model_id;
-  (void)geometryExpressID;
-  return NULL;
+    // TODO: translate from TypeScript to C++ 20
+  if (!api || !api->manager)
+    return {};
+  //     return manager.IsModelOpen(modelID) ? manager.GetGeometryProcessor(modelID)->GetGeometry(expressID) : webifc::geometry::IfcGeometry();
+
 }
 
 /* Creates a new AABB helper (stub). */
 extern "C" FFI_EXPORT AABB *ifc_api_create_aabb(IfcAPI *api)
 {
-  (void)api;
-  return NULL;
+    // TODO: translate from TypeScript to C++ 20
+  if (!api || !api->manager)
+    return {};
 }
 
 /* Creates a new Extrusion helper (stub). */
 extern "C" FFI_EXPORT Extrusion *ifc_api_create_extrusion(IfcAPI *api)
 {
-  (void)api;
-  return NULL;
+    // TODO: translate from TypeScript to C++ 20
+  if (!api || !api->manager)
+    return {};
 }
 
 /* Creates a new Sweep helper (stub). */
 extern "C" FFI_EXPORT Sweep *ifc_api_create_sweep(IfcAPI *api)
 {
-  (void)api;
-  return NULL;
+    // TODO: translate from TypeScript to C++ 20
+  if (!api || !api->manager)
+    return {};
 }
 
 /* Creates a new CircularSweep helper (stub). */
 extern "C" FFI_EXPORT CircularSweep *ifc_api_create_circular_sweep(IfcAPI *api)
 {
-  (void)api;
-  return NULL;
+    // TODO: translate from TypeScript to C++ 20
+  if (!api || !api->manager)
+    return {};
 }
 
 /* Creates a new Revolution helper (stub). */
 extern "C" FFI_EXPORT Revolution *ifc_api_create_revolution(IfcAPI *api)
 {
-  (void)api;
-  return NULL;
+    // TODO: translate from TypeScript to C++ 20
+  if (!api || !api->manager)
+    return {};
 }
 
 /* Creates a new CylindricalRevolve helper (stub). */
 extern "C" FFI_EXPORT CylindricalRevolve *ifc_api_create_cylindrical_revolution(IfcAPI *api)
 {
-  (void)api;
-  return NULL;
+    // TODO: translate from TypeScript to C++ 20
+  if (!api || !api->manager)
+    return {};
 }
 
 /* Creates a new Parabola helper (stub). */
 extern "C" FFI_EXPORT Parabola *ifc_api_create_parabola(IfcAPI *api)
 {
-  (void)api;
-  return NULL;
+    // TODO: translate from TypeScript to C++ 20
+  if (!api || !api->manager)
+    return {};
 }
 
 /* Creates a new Clothoid helper (stub). */
 extern "C" FFI_EXPORT Clothoid *ifc_api_create_clothoid(IfcAPI *api)
 {
-  (void)api;
-  return NULL;
+    // TODO: translate from TypeScript to C++ 20
+  if (!api || !api->manager)
+    return {};
 }
 
 /* Creates a new Arc helper (stub). */
 extern "C" FFI_EXPORT Arc *ifc_api_create_arc(IfcAPI *api)
 {
-  (void)api;
-  return NULL;
+    // TODO: translate from TypeScript to C++ 20
+  if (!api || !api->manager)
+    return {};
 }
 
 /* Creates a new AlignmentOp helper (stub). */
 extern "C" FFI_EXPORT AlignmentOp *ifc_api_create_alignment(IfcAPI *api)
 {
-  (void)api;
-  return NULL;
+    // TODO: translate from TypeScript to C++ 20
+  if (!api || !api->manager)
+    return {};
+  //  return bimGeometry::Alignment();
 }
 
 /* Creates a new BooleanOperator helper (stub). */
 extern "C" FFI_EXPORT BooleanOperator *ifc_api_create_boolean_operator(IfcAPI *api)
 {
-  (void)api;
-  return NULL;
+  // TODO: translate from TypeScript to C++ 20
+  if (!api || !api->manager)
+    return {};
 }
 
 /* Creates a new ProfileSection helper (stub). */
 extern "C" FFI_EXPORT ProfileSection *ifc_api_create_profile(IfcAPI *api)
 {
-  (void)api;
-  return NULL;
+  // TODO: translate from TypeScript to C++ 20
+  if (!api || !api->manager)
+    return {};
+  // return bimGeometry::Profile();
 }
 
 /* Gets header line data (stub). */
@@ -336,15 +351,26 @@ extern "C" FFI_EXPORT RawLineData ifc_api_get_header_line(const IfcAPI *api,
                                                           uint32_t model_id,
                                                           int headerType)
 {
-  (void)api;
-  (void)model_id;
-  (void)headerType;
-  RawLineData out;
-  out.ID = 0;
-  out.type = 0;
-  out.arguments = NULL;
-  out.arguments_len = 0;
-  return out;
+  // TODO: translate from TypeScript to C++ 20
+  if (!api || !api->manager)
+    return {};
+  // if (!manager.IsModelOpen(modelID))
+  //         return emscripten::val::undefined();
+  //     auto loader = manager.GetIfcLoader(modelID);
+  //     auto lines = loader->GetHeaderLinesWithType(headerType);
+
+  //     if (lines.size() <= 0)
+  //         return emscripten::val::undefined();
+  //     auto line = lines[0];
+  //     loader->MoveToHeaderLineArgument(line, 0);
+
+  //     std::string s(manager.GetSchemaManager().IfcTypeCodeToType(headerType));
+  //     auto arguments = GetArgs(modelID);
+  //     auto retVal = emscripten::val::object();
+  //     retVal.set("ID", line);
+  //     retVal.set("type", s);
+  //     retVal.set("arguments", arguments);
+  //     return retVal;
 }
 
 /* Gets all types of a model (stub). */
@@ -352,11 +378,9 @@ extern "C" FFI_EXPORT IfcType *ifc_api_get_all_types_of_model(const IfcAPI *api,
                                                               uint32_t model_id,
                                                               size_t *out_count)
 {
-  (void)api;
-  (void)model_id;
-  if (out_count)
-    *out_count = 0;
-  return NULL;
+  // TODO: translate from TypeScript to C++ 20
+  if (!api || !api->manager)
+    return NULL;
 }
 
 /* Gets line data for a single express ID (stub). */
@@ -367,13 +391,9 @@ extern "C" FFI_EXPORT void *ifc_api_get_line(const IfcAPI *api,
                                              bool inverse,
                                              const char *inversePropKey)
 {
-  (void)api;
-  (void)model_id;
-  (void)expressID;
-  (void)flatten;
-  (void)inverse;
-  (void)inversePropKey;
-  return NULL;
+  // TODO: translate from TypeScript to C++ 20
+  if (!api || !api->manager)
+    return NULL;
 }
 
 /* Gets line data for multiple express IDs (stub). */
@@ -386,27 +406,22 @@ extern "C" FFI_EXPORT void **ifc_api_get_lines(const IfcAPI *api,
                                                const char *inversePropKey,
                                                size_t *out_count)
 {
-  (void)api;
-  (void)model_id;
-  (void)expressIDs;
-  (void)num_ids;
-  (void)flatten;
-  (void)inverse;
-  (void)inversePropKey;
-  if (out_count)
-    *out_count = 0;
-  return NULL;
+  // TODO: translate from TypeScript to C++ 20
+  if (!api || !api->manager)
+    return NULL;
 }
 
 /* Gets the next unused express ID (stub). */
-extern "C" FFI_EXPORT int ifc_api_get_next_express_id(const IfcAPI *api,
-                                                      uint32_t model_id,
-                                                      uint32_t expressID)
+extern "C" FFI_EXPORT uint32_t ifc_api_get_next_express_id(const IfcAPI *api,
+                                                           uint32_t model_id,
+                                                           uint32_t expressID)
 {
-  (void)api;
-  (void)model_id;
-  (void)expressID;
-  return 0;
+  if (!api || !api->manager)
+    return NULL;
+  if (!api->manager->IsModelOpen(model_id))
+    return NULL;
+
+  return api->manager->GetIfcLoader(model_id)->GetNextExpressID(expressID);
 }
 
 /* Creates a new IFC entity (stub). */
@@ -447,7 +462,7 @@ extern "C" FFI_EXPORT size_t ifc_api_get_name_from_type_code(const IfcAPI *api,
 {
   if (!api || !api->manager)
     return NULL;
-  
+
   std::string result = api->manager->GetSchemaManager().IfcTypeCodeToType(type);
   return ffi_strdup(result, out);
 }

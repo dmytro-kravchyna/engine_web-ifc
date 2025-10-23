@@ -885,7 +885,7 @@ extern "C"
      * @param expressID Starting express ID value.
      * @returns The next unused express ID starting from the value provided.
      */
-    FFI_EXPORT int ifc_api_get_next_express_id(const IfcAPI *api,
+    FFI_EXPORT uint32_t ifc_api_get_next_express_id(const IfcAPI *api,
                                                uint32_t model_id,
                                                uint32_t expressID);
 
