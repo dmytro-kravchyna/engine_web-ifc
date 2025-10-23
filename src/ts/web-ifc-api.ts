@@ -1517,6 +1517,6 @@ export class IfcAPI {
    */
 
   ResetCache(modelID: number) {
-    return this.wasmModule.DecodeText(modelID);
+    return this.wasmModule.ResetCache(modelID);
   }
 }

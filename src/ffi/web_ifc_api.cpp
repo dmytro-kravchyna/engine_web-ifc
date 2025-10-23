@@ -5,12 +5,39 @@
 // by CMake (target_include_directories).  In the absence of the full
 // project, a stub header exists at cpp/web-ifc/modelmanager/ModelManager.h
 // in the repository root.
-#include <web-ifc/modelmanager/ModelManager.h>
 #include "web_ifc_api.h"
 #include <stdlib.h>
-#include <string.h>
-#include <functional>
+#include <unordered_map>
+
+// Standard library headers
 #include <string>
+#include <algorithm>
+#include <vector>
+#include <cstdint>
+#include <functional>
+#include <array>
+#include <sstream>
+
+// Third‑party libraries
+#include <spdlog/spdlog.h>
+#include <nlohmann/json.hpp>
+#include <glm/glm.hpp>
+
+// Web‑IFC headers
+#include <web-ifc/modelmanager/ModelManager.h>
+#include <version.h>
+#include <web-ifc/geometry/operations/bim-geometry/extrusion.h>
+#include <web-ifc/geometry/operations/bim-geometry/sweep.h>
+#include <web-ifc/geometry/operations/bim-geometry/circularSweep.h>
+#include <web-ifc/geometry/operations/bim-geometry/revolution.h>
+#include <web-ifc/geometry/operations/bim-geometry/cylindricalRevolution.h>
+#include <web-ifc/geometry/operations/bim-geometry/parabola.h>
+#include <web-ifc/geometry/operations/bim-geometry/clothoid.h>
+#include <web-ifc/geometry/operations/bim-geometry/arc.h>
+#include <web-ifc/geometry/operations/bim-geometry/alignment.h>
+#include <web-ifc/geometry/operations/bim-geometry/utils.h>
+#include <web-ifc/geometry/operations/bim-geometry/boolean.h>
+#include <web-ifc/geometry/operations/bim-geometry/profile.h>
 
 #include "helpers/web_ifc_wasm.cpp"
 
@@ -51,50 +78,50 @@ static int find_schema_index(const char* schemaName) {
   return -1;
 }
 
+/* C++ implementation of the opaque IfcAPI defined in the header.  This
+ * struct is visible only in this translation unit and may freely use
+ * STL containers and C++ types.  It mirrors the responsibilities that
+ * were previously represented with raw arrays in the header.
+ */
+struct IfcAPI {
+  std::vector<int> model_schema_list;
+  std::vector<std::string> model_schema_name_list;
+  std::vector<std::vector<int>> deleted_lines;
+  // properties left as opaque pointer for now; the high-level TS code
+  // stored an object here. Keep as void* to preserve ABI.
+  void* properties = nullptr;
+  webifc::manager::ModelManager* manager = nullptr;
+  // Per-model GUID <-> expressID mappings (optional, lazily populated).
+  // guid_to_id[model_id] maps GUID string -> expressID
+  // id_to_guid[model_id] maps expressID -> GUID string
+  std::vector<std::unordered_map<std::string,int>> guid_to_id;
+  std::vector<std::unordered_map<int,std::string>> id_to_guid;
+};
+
+
 /* Create a new API object.  Allocates an IfcAPI structure and zeroes
  * its fields. */
 extern "C" FFI_EXPORT IfcAPI *ifc_api_new(void) {
-//    IfcAPI *api = (IfcAPI *)calloc(1, sizeof(IfcAPI));
-//    if (!api) return NULL;
-//    api->manager = new webifc::manager::ModelManager(MT_ENABLED);
-//    return api;
-    
-    IfcAPI *api = (IfcAPI*)malloc(sizeof(IfcAPI));
-    if (api) {
-        memset(api, 0, sizeof(IfcAPI));
-    }
-    return api;
+  IfcAPI *api = nullptr;
+  try {
+    api = new IfcAPI();
+    api->manager = new webifc::manager::ModelManager(MT_ENABLED);
+  } catch (...) {
+    if (api) delete api;
+    return NULL;
+  }
+  return api;
 }
 
 /* Free an API object and any internal allocations. */
 extern "C" FFI_EXPORT void ifc_api_free(IfcAPI *api) {
     if (!api) return;
-    
-//    /* Free model schema names */
-//    if (api->model_schema_name_list) {
-//        for (size_t i = 0; i < api->model_schema_count; ++i) {
-//            free(api->model_schema_name_list[i]);
-//        }
-//        free(api->model_schema_name_list);
-//    }
-//    /* Free model schema list */
-//    free(api->model_schema_list);
-//    /* Free deleted lines arrays */
-//    if (api->deleted_lines) {
-//        for (size_t i = 0; i < api->deleted_lines_count; ++i) {
-//            free(api->deleted_lines[i]);
-//        }
-//        free(api->deleted_lines);
-//    }
-//    /* Destroy the ModelManager if present. */
-//    if (api->manager) {
-//        delete api->manager;
-//        api->manager = NULL;
-//    }
-//    /* Free the API struct */
-//    free(api);
-    
-    free(api);
+  /* Destroy C++ manager if present and delete the whole API object. */
+  if (api->manager) {
+    delete api->manager;
+    api->manager = nullptr;
+  }
+  delete api;
 }
 
 /* Initializes the WASM module (stub).  Always returns 0. */
@@ -367,14 +394,27 @@ extern "C" FFI_EXPORT void ifc_api_write_lines(IfcAPI *api,
                           int model_id,
                           void **line_objects,
                           size_t num_lines) {
-    (void)api; (void)model_id; (void)line_objects; (void)num_lines;
+    if (!api || !api->manager || !line_objects) return;
+    using json = nlohmann::json;
+    for (size_t i = 0; i < num_lines; ++i) {
+        RawLineData *raw = (RawLineData*)line_objects[i];
+        if (!raw) continue;
+        /* TODO: convert raw->arguments (void**) into a proper json array.
+         * For now pass an empty parameter list to the underlying writer. */
+        json params = json::array();
+        WriteLine(api->manager, (uint32_t)model_id, (uint32_t)raw->ID, (uint32_t)raw->type, params);
+    }
 }
 
 /* Writes a single line (stub). */
 extern "C" FFI_EXPORT void ifc_api_write_line(IfcAPI *api,
                          int model_id,
                          void *line_object) {
-    (void)api; (void)model_id; (void)line_object;
+  if (!api || !api->manager || !line_object) return;
+  RawLineData *data = (RawLineData*)line_object;
+  using json = nlohmann::json;
+  json params = json::array(); /* TODO: marshal data->arguments */
+  WriteLine(api->manager, (uint32_t)model_id, (uint32_t)data->ID, (uint32_t)data->type, params);
 }
 
 /* Gets all line IDs of a specific type (stub). */
@@ -383,25 +423,50 @@ extern "C" FFI_EXPORT int *ifc_api_get_line_ids_with_type(const IfcAPI *api,
                                      int type,
                                      bool includeInherited,
                                      size_t *out_count) {
-    (void)api; (void)model_id; (void)type; (void)includeInherited;
-    if (out_count) *out_count = 0;
-    return NULL;
+    if (!api || !api->manager) {
+        if (out_count) *out_count = 0;
+        return NULL;
+    }
+    using json = nlohmann::json;
+    json types = json::array();
+    types.push_back(type);
+    /* NOTE: InheritanceDef is a TypeScript-side data structure; full
+     * inheritance expansion is not currently implemented here. */
+    std::vector<uint32_t> ids = GetLineIDsWithType(api->manager, (uint32_t)model_id, types);
+    if (out_count) *out_count = ids.size();
+    if (ids.empty()) return NULL;
+    int *result = (int*)malloc(sizeof(int) * ids.size());
+    for (size_t i = 0; i < ids.size(); ++i) result[i] = static_cast<int>(ids[i]);
+    return result;
 }
 
 /* Gets all line IDs of a model (stub). */
 extern "C" FFI_EXPORT int *ifc_api_get_all_lines(const IfcAPI *api,
                           int model_id,
                           size_t *out_count) {
-    (void)api; (void)model_id;
+  if (!api || !api->manager) {
     if (out_count) *out_count = 0;
     return NULL;
+  }
+  std::vector<uint32_t> lineIds = GetAllLines(api->manager, (uint32_t)model_id);
+  if (out_count) *out_count = lineIds.size();
+  if (lineIds.empty()) return NULL;
+  int *result = (int*)malloc(sizeof(int) * lineIds.size());
+  for (size_t i = 0; i < lineIds.size(); ++i) result[i] = static_cast<int>(lineIds[i]);
+  return result;
 }
 
 /* Gets all 2D cross sections (stub). */
 extern "C" FFI_EXPORT CrossSection *ifc_api_get_all_cross_sections_2d(const IfcAPI *api,
                                               int model_id,
                                               size_t *out_count) {
-    (void)api; (void)model_id;
+    if (!api || !api->manager) {
+        if (out_count) *out_count = 0;
+        return NULL;
+    }
+    // Marshalling webifc::geometry::IfcCrossSections -> CrossSection is
+    // non-trivial. Provide a placeholder implementation that returns NULL
+    // and sets out_count to 0. This can be expanded later.
     if (out_count) *out_count = 0;
     return NULL;
 }
@@ -410,7 +475,10 @@ extern "C" FFI_EXPORT CrossSection *ifc_api_get_all_cross_sections_2d(const IfcA
 extern "C" FFI_EXPORT CrossSection *ifc_api_get_all_cross_sections_3d(const IfcAPI *api,
                                               int model_id,
                                               size_t *out_count) {
-    (void)api; (void)model_id;
+    if (!api || !api->manager) {
+        if (out_count) *out_count = 0;
+        return NULL;
+    }
     if (out_count) *out_count = 0;
     return NULL;
 }
@@ -419,7 +487,10 @@ extern "C" FFI_EXPORT CrossSection *ifc_api_get_all_cross_sections_3d(const IfcA
 extern "C" FFI_EXPORT AlignmentData *ifc_api_get_all_alignments(const IfcAPI *api,
                                         int model_id,
                                         size_t *out_count) {
-    (void)api; (void)model_id;
+    if (!api || !api->manager) {
+        if (out_count) *out_count = 0;
+        return NULL;
+    }
     if (out_count) *out_count = 0;
     return NULL;
 }
@@ -428,27 +499,42 @@ extern "C" FFI_EXPORT AlignmentData *ifc_api_get_all_alignments(const IfcAPI *ap
 extern "C" FFI_EXPORT void ifc_api_set_geometry_transformation(IfcAPI *api,
                                        int model_id,
                                        const double *transformationMatrix) {
-    (void)api; (void)model_id; (void)transformationMatrix;
+    if (!api || !api->manager || !transformationMatrix) return;
+    std::array<double,16> m;
+    for (int i = 0; i < 16; ++i) m[i] = transformationMatrix[i];
+    SetGeometryTransformation(api->manager, (uint32_t)model_id, m);
 }
 
 /* Gets the coordination matrix (stub). */
 extern "C" FFI_EXPORT double *ifc_api_get_coordination_matrix(const IfcAPI *api,
                                         int model_id,
                                         size_t *out_len) {
-    (void)api; (void)model_id;
+  if (!api || !api->manager) {
     if (out_len) *out_len = 0;
     return NULL;
+  }
+  auto arr = GetCoordinationMatrix(api->manager, (uint32_t)model_id);
+  if (out_len) *out_len = 16;
+  double *out = (double*)malloc(sizeof(double) * 16);
+  for (size_t i = 0; i < 16; ++i) out[i] = arr[i];
+  return out;
 }
 
 /* Closes a model (stub). */
 extern "C" FFI_EXPORT void ifc_api_close_model(IfcAPI *api,
                         int model_id) {
-    (void)api; (void)model_id;
+  if (!api || !api->manager) return;
+  if ((int)api->guid_to_id.size() > model_id) api->guid_to_id[model_id].clear();
+  if ((int)api->id_to_guid.size() > model_id) api->id_to_guid[model_id].clear();
+  CloseModel(api->manager, (uint32_t)model_id);
 }
 
 /* Disposes all models (stub). */
 extern "C" FFI_EXPORT void ifc_api_dispose(IfcAPI *api) {
-    (void)api;
+  if (!api) return;
+  api->guid_to_id.clear();
+  api->id_to_guid.clear();
+  if (api->manager) CloseAllModels(api->manager);
 }
 
 /* Streams meshes with specific express IDs (stub). */
@@ -456,17 +542,31 @@ extern "C" FFI_EXPORT void ifc_api_stream_meshes(const IfcAPI *api,
                           int model_id,
                           const int *expressIDs,
                           size_t num_ids,
-                          IfcMeshCallback mesh_cb,
+                          IfcMeshCallback mesh_cb, //    meshCallback: (mesh: FlatMesh, index: number, total: number) => void
+
                           void *user_data) {
-    (void)api; (void)model_id; (void)expressIDs; (void)num_ids; (void)mesh_cb; (void)user_data;
+    if (!api || !api->manager) return;
+    // Convert expressIDs to vector<uint32_t>
+    std::vector<uint32_t> ids;
+    ids.reserve(num_ids);
+    for (size_t i = 0; i < num_ids; ++i) ids.push_back((uint32_t)expressIDs[i]);
+    StreamMeshes(api->manager, (uint32_t)model_id, ids,
+      [mesh_cb, user_data](const webifc::geometry::IfcFlatMesh &mesh, int index, int total){
+        // TODO: marshal IfcFlatMesh -> FlatMesh and invoke mesh_cb
+        (void)mesh; (void)index; (void)total; (void)mesh_cb; (void)user_data;
+      });
 }
 
 /* Streams all meshes of a model (stub). */
 extern "C" FFI_EXPORT void ifc_api_stream_all_meshes(const IfcAPI *api,
                               int model_id,
-                              IfcMeshCallback mesh_cb,
+                              IfcMeshCallback mesh_cb, //    meshCallback: (mesh: FlatMesh, index: number, total: number) => void
                               void *user_data) {
-    (void)api; (void)model_id; (void)mesh_cb; (void)user_data;
+   if (!api || !api->manager) return;
+   StreamAllMeshes(api->manager, (uint32_t)model_id,
+     [mesh_cb, user_data](const webifc::geometry::IfcFlatMesh &mesh, int index, int total){
+       (void)mesh; (void)index; (void)total; (void)mesh_cb; (void)user_data;
+     });
 }
 
 /* Streams all meshes with types (stub). */
@@ -474,23 +574,31 @@ extern "C" FFI_EXPORT void ifc_api_stream_all_meshes_with_types(const IfcAPI *ap
                                          int model_id,
                                          const int *types,
                                          size_t num_types,
-                                         IfcMeshCallback mesh_cb,
+                                         IfcMeshCallback mesh_cb, //    meshCallback: (mesh: FlatMesh, index: number, total: number) => void
                                          void *user_data) {
-    (void)api; (void)model_id; (void)types; (void)num_types; (void)mesh_cb; (void)user_data;
+   if (!api || !api->manager) return;
+   std::vector<uint32_t> tvec;
+   tvec.reserve(num_types);
+   for (size_t i = 0; i < num_types; ++i) tvec.push_back((uint32_t)types[i]);
+   StreamAllMeshesWithTypes(api->manager, (uint32_t)model_id, tvec,
+     [mesh_cb, user_data](const webifc::geometry::IfcFlatMesh &mesh, int index, int total){
+       (void)mesh; (void)index; (void)total; (void)mesh_cb; (void)user_data;
+     });
 }
 
 /* Checks if a model is open (stub). */
 extern "C" FFI_EXPORT bool ifc_api_is_model_open(const IfcAPI *api,
                           int model_id) {
-    (void)api; (void)model_id;
-    return false;
+  if (!api || !api->manager) return false;
+  return IsModelOpen(api->manager, (uint32_t)model_id);
 }
 
 /* Loads all geometry in a model (stub). */
 extern "C" FFI_EXPORT FlatMesh **ifc_api_load_all_geometry(const IfcAPI *api,
                                    int model_id,
                                    size_t *out_count) {
-    (void)api; (void)model_id;
+    (void)api; (void)model_id; (void)out_count;
+    // Full marshalling of geometry is not implemented in this pass.
     if (out_count) *out_count = 0;
     return NULL;
 }
@@ -499,77 +607,164 @@ extern "C" FFI_EXPORT FlatMesh **ifc_api_load_all_geometry(const IfcAPI *api,
 extern "C" FFI_EXPORT FlatMesh *ifc_api_get_flat_mesh(const IfcAPI *api,
                                int model_id,
                                int expressID) {
-    (void)api; (void)model_id; (void)expressID;
-    return NULL;
+  // Full marshalling of IfcFlatMesh -> FlatMesh is non-trivial and
+  // not implemented in this pass. Avoid calling the helper with
+  // incorrect signature and return NULL as a safe stub.
+  (void)api; (void)model_id; (void)expressID;
+  return NULL;
 }
 
 /* Gets the maximum express ID (stub). */
 extern "C" FFI_EXPORT int ifc_api_get_max_express_id(const IfcAPI *api,
-                              int model_id) {
-    (void)api; (void)model_id;
-    return 0;
+                int model_id) {
+  if (!api || !api->manager) return 0;
+  return static_cast<int>(GetMaxExpressID(api->manager, (uint32_t)model_id));
 }
 
 /* Gets the line type (stub). */
 extern "C" FFI_EXPORT int ifc_api_get_line_type(const IfcAPI *api,
                           int model_id,
                           int expressID) {
-    (void)api; (void)model_id; (void)expressID;
-    return 0;
+  if (!api || !api->manager) return 0;
+  return static_cast<int>(GetLineType(api->manager, (uint32_t)model_id, (uint32_t)expressID));
 }
 
 /* Gets the version of web-ifc (stub). */
 extern "C" FFI_EXPORT const char *ifc_api_get_version(const IfcAPI *api) {
-    (void)api;
-    return NULL;
+  // Allocate a C string that the caller may free.  The caller is
+  // expected to use free() on the returned pointer.
+  std::string v = GetVersion();
+  char *out = (char*)malloc(v.size() + 1);
+  if (!out) return NULL;
+  memcpy(out, v.c_str(), v.size() + 1);
+  return out;
 }
 
-/* Looks up express ID from GUID (stub). */
+// Build GUID maps for a model. This inspects all entity types, reads the
+// GlobalId where present and stores bidirectional mappings in the API
+// object's per-model maps. This function is intentionally simple and
+// skips entries that cannot be decoded.
+static void build_guid_maps(IfcAPI *api, int modelID) {
+  if (!api || !api->manager) return;
+  // Ensure map vectors are large enough
+  if ((int)api->guid_to_id.size() <= modelID) api->guid_to_id.resize(modelID + 1);
+  if ((int)api->id_to_guid.size() <= modelID) api->id_to_guid.resize(modelID + 1);
+
+  auto &g2i = api->guid_to_id[modelID];
+  auto &i2g = api->id_to_guid[modelID];
+  g2i.clear();
+  i2g.clear();
+
+  // Use the manager's schema to obtain element types
+  const auto &elementTypes = api->manager->GetSchemaManager().GetIfcElementList();
+  for (uint32_t typeId : elementTypes) {
+    // Get all express IDs for this type
+    auto lines = api->manager->GetIfcLoader(modelID)->GetExpressIDsWithType(typeId);
+    for (uint32_t expressID : lines) {
+      try {
+        json line = GetLine(api->manager, (uint32_t)modelID, expressID);
+        if (!line.is_object()) continue;
+        std::string guid;
+        if (line.contains("arguments") && line["arguments"].is_array()) {
+          for (const auto &arg : line["arguments"]) {
+            if (arg.is_string()) {
+              guid = arg.get<std::string>();
+              break;
+            }
+            if (arg.is_object() && arg.contains("value") && arg["value"].is_string()) {
+              guid = arg["value"].get<std::string>();
+              break;
+            }
+          }
+        }
+        if (!guid.empty()) {
+          g2i[guid] = (int)expressID;
+          i2g[(int)expressID] = guid;
+        }
+      } catch (...) {
+        continue;
+      }
+    }
+  }
+}
+
+
+/* Looks up express ID from GUID. Returns 0 if not found. */
 extern "C" FFI_EXPORT int ifc_api_get_express_id_from_guid(const IfcAPI *api,
                                      int model_id,
                                      const char *guid) {
-    (void)api; (void)model_id; (void)guid;
-    return 0;
+    if (!api || !guid) return 0;
+    // cast away const to allow lazy population
+    IfcAPI *wapi = const_cast<IfcAPI*>(api);
+    if ((int)wapi->guid_to_id.size() <= model_id || wapi->guid_to_id[model_id].empty()) {
+      build_guid_maps(wapi, model_id);
+    }
+    if ((int)wapi->guid_to_id.size() <= model_id) return 0;
+    auto &g2i = wapi->guid_to_id[model_id];
+    auto it = g2i.find(std::string(guid));
+    return (it == g2i.end()) ? 0 : it->second;
 }
 
-/* Looks up GUID from express ID (stub). */
+
+/* Looks up GUID from express ID. Returns NULL if not found. The returned
+ * string is owned by the API instance and remains valid until the model is
+ * closed or the API is freed. */
 extern "C" FFI_EXPORT const char *ifc_api_get_guid_from_express_id(const IfcAPI *api,
                                             int model_id,
                                             int expressID) {
-    (void)api; (void)model_id; (void)expressID;
-    return NULL;
+    if (!api) return NULL;
+    IfcAPI *wapi = const_cast<IfcAPI*>(api);
+    if ((int)wapi->id_to_guid.size() <= model_id || wapi->id_to_guid[model_id].empty()) {
+      build_guid_maps(wapi, model_id);
+    }
+    if ((int)wapi->id_to_guid.size() <= model_id) return NULL;
+    auto &i2g = wapi->id_to_guid[model_id];
+    auto it = i2g.find(expressID);
+    if (it == i2g.end()) return NULL;
+    // store string in a vector inside the API to keep lifetime; reuse map storage
+    return i2g[expressID].c_str();
 }
 
-/* Sets the wasm path (stub). */
-extern "C" FFI_EXPORT void ifc_api_set_wasm_path(IfcAPI *api,
-                          const char *path,
-                          bool absolute) {
-    (void)api; (void)path; (void)absolute;
-}
+// /* Sets the wasm path (stub). */
+// extern "C" FFI_EXPORT void ifc_api_set_wasm_path(IfcAPI *api,
+//                           const char *path,
+//                           bool absolute) {
+//     (void)api; (void)path; (void)absolute;
+// }
 
 /* Sets the log level (stub). */
 extern "C" FFI_EXPORT void ifc_api_set_log_level(IfcAPI *api,
-                          int level) {
-    (void)api; (void)level;
+                          LogLevel level) {
+  log_set_level(level);
+  if (api && api->manager) SetLogLevel(api->manager, (uint8_t)level);
 }
 
 /* Encodes text using IFC encoding (stub). */
 extern "C" FFI_EXPORT char *ifc_api_encode_text(const IfcAPI *api,
                           const char *text) {
-    (void)api; (void)text;
-    return NULL;
+  if (!text) return NULL;
+  std::string outs = EncodeText(std::string(text));
+  char *out = (char*)malloc(outs.size() + 1);
+  if (!out) return NULL;
+  memcpy(out, outs.c_str(), outs.size() + 1);
+  return out;
 }
 
 /* Decodes text using IFC encoding (stub). */
 extern "C" FFI_EXPORT char *ifc_api_decode_text(const IfcAPI *api,
                           const char *text) {
-    (void)api; (void)text;
-    return NULL;
+  if (!text) return NULL;
+  std::string_view strView{text};
+  std::string outs = webifc::parsing::p21decode(const_cast<std::string_view&>(strView));
+  char *out = (char*)malloc(outs.size() + 1);
+  if (!out) return NULL;
+  memcpy(out, outs.c_str(), outs.size() + 1);
+  return out;
 }
 
 /* Resets the cached IFC data (stub). */
-extern "C" FFI_EXPORT char *ifc_api_reset_cache(const IfcAPI *api,
+extern "C" FFI_EXPORT void ifc_api_reset_cache(const IfcAPI *api,
                           int model_id) {
-    (void)api; (void)model_id;
-    return NULL;
+  if (api->manager->IsModelOpen(model_id))
+        api->manager->GetGeometryProcessor(model_id)->GetLoader().ResetCache();
 }

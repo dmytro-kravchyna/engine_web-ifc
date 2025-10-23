@@ -75,16 +75,20 @@ typedef void (*log_sink_fn)(const char *levelPrefix, const char *message);
 /*  WEB_IFC_ANDROID_LOG is defined.                                       */
 /* ======================================================================= */
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-/* Include additional headers needed by the implementation */
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdbool.h>
+
+/* Use C11 <stdatomic.h> for C builds, but prefer <atomic> for C++ to avoid
+ * incompatibilities between the C and C++ atomic headers on some toolchains
+ * (notably Apple Clang).  Provide thin wrapper helpers so the rest of this
+ * header can use a uniform API regardless of language. */
+#ifdef __cplusplus
+#include <atomic>
+#else
 #include <stdatomic.h>
+#endif
 #if defined(__ANDROID__) || defined(WEB_IFC_ANDROID_LOG)
 #include <android/log.h>
 #endif
@@ -103,25 +107,44 @@ extern "C" {
 
 /* Internal static state for log level and custom sink.  Each translation  */
 /* unit including this header will have its own copy.                     */
+/* Atomic variables: use std::atomic in C++ and C11 atomics in C. */
+#ifdef __cplusplus
+static std::atomic<int> web_ifc_log_currentLogLevel{LOG_LEVEL_ERROR};
+static std::atomic<log_sink_fn> web_ifc_log_currentSink{nullptr};
+#else
 static atomic_int web_ifc_log_currentLogLevel = ATOMIC_VAR_INIT(LOG_LEVEL_ERROR);
 static _Atomic(log_sink_fn) web_ifc_log_currentSink = NULL;
+#endif
+
+/* Thin wrappers to provide a uniform interface for atomic ops used below. */
+#ifdef __cplusplus
+static inline void web_ifc_atomic_store_int(std::atomic<int>* obj, int val) { obj->store(val, std::memory_order_seq_cst); }
+static inline int web_ifc_atomic_load_int(std::atomic<int>* obj) { return obj->load(std::memory_order_seq_cst); }
+static inline void web_ifc_atomic_store_sink(std::atomic<log_sink_fn>* obj, log_sink_fn val) { obj->store(val, std::memory_order_seq_cst); }
+static inline log_sink_fn web_ifc_atomic_load_sink(std::atomic<log_sink_fn>* obj) { return obj->load(std::memory_order_seq_cst); }
+#else
+static inline void web_ifc_atomic_store_int(atomic_int* obj, int val) { atomic_store(obj, val); }
+static inline int web_ifc_atomic_load_int(atomic_int* obj) { return atomic_load(obj); }
+static inline void web_ifc_atomic_store_sink(_Atomic(log_sink_fn)* obj, log_sink_fn val) { atomic_store(obj, val); }
+static inline log_sink_fn web_ifc_atomic_load_sink(_Atomic(log_sink_fn)* obj) { return atomic_load(obj); }
+#endif
 
 /* Set the current log level.  Only messages at or below this level will  */
 /* be emitted.                                                            */
 static inline void log_set_level(LogLevel level) {
-    atomic_store(&web_ifc_log_currentLogLevel, (int)level);
+    web_ifc_atomic_store_int(&web_ifc_log_currentLogLevel, (int)level);
 }
 
 /* Get the current log level. */
 static inline LogLevel log_get_level(void) {
-    return (LogLevel)atomic_load(&web_ifc_log_currentLogLevel);
+    return (LogLevel)web_ifc_atomic_load_int(&web_ifc_log_currentLogLevel);
 }
 
 /* Register a custom sink function.  When a sink is registered, all       */
 /* messages are forwarded to it rather than written to stdout/stderr or   */
 /* Android's logcat.  Pass NULL to restore the default behaviour.        */
 static inline void log_set_sink(log_sink_fn sink) {
-    atomic_store(&web_ifc_log_currentSink, sink);
+    web_ifc_atomic_store_sink(&web_ifc_log_currentSink, sink);
 }
 
 /* Convert a LogLevel enum to a human‑readable string. */
@@ -138,7 +161,7 @@ static inline const char *log_level_to_string(LogLevel level) {
 /* Internal helper to dispatch a message either to the custom sink,        */
 /* Android logcat, or the appropriate standard stream.                    */
 static inline void web_ifc_log_dispatch_message(const char *levelPrefix, const char *formatted) {
-    log_sink_fn sink = atomic_load(&web_ifc_log_currentSink);
+    log_sink_fn sink = web_ifc_atomic_load_sink(&web_ifc_log_currentSink);
     if (sink) {
         sink(levelPrefix, formatted);
         return;
@@ -270,7 +293,7 @@ static inline void web_ifc_log_vbuild_and_dispatch(const char *prefix, const cha
 /* Public logging functions.  These check the current log level and       */
 /* forward to vbuild_and_dispatch if appropriate.                         */
 static inline void log_msg(const char *fmt, ...) {
-    if (atomic_load(&web_ifc_log_currentLogLevel) <= LOG_LEVEL_ERROR) {
+    if (web_ifc_atomic_load_int(&web_ifc_log_currentLogLevel) <= LOG_LEVEL_ERROR) {
         va_list ap;
         va_start(ap, fmt);
         web_ifc_log_vbuild_and_dispatch("", fmt, ap);
@@ -279,13 +302,13 @@ static inline void log_msg(const char *fmt, ...) {
 }
 
 static inline void log_vmsg(const char *fmt, va_list ap) {
-    if (atomic_load(&web_ifc_log_currentLogLevel) <= LOG_LEVEL_ERROR) {
+    if (web_ifc_atomic_load_int(&web_ifc_log_currentLogLevel) <= LOG_LEVEL_ERROR) {
         web_ifc_log_vbuild_and_dispatch("", fmt, ap);
     }
 }
 
 static inline void log_debug(const char *fmt, ...) {
-    if (atomic_load(&web_ifc_log_currentLogLevel) <= LOG_LEVEL_DEBUG) {
+    if (web_ifc_atomic_load_int(&web_ifc_log_currentLogLevel) <= LOG_LEVEL_DEBUG) {
         va_list ap;
         va_start(ap, fmt);
         web_ifc_log_vbuild_and_dispatch("DEBUG: ", fmt, ap);
@@ -294,13 +317,13 @@ static inline void log_debug(const char *fmt, ...) {
 }
 
 static inline void log_vdebug(const char *fmt, va_list ap) {
-    if (atomic_load(&web_ifc_log_currentLogLevel) <= LOG_LEVEL_DEBUG) {
+    if (web_ifc_atomic_load_int(&web_ifc_log_currentLogLevel) <= LOG_LEVEL_DEBUG) {
         web_ifc_log_vbuild_and_dispatch("DEBUG: ", fmt, ap);
     }
 }
 
 static inline void log_warn(const char *fmt, ...) {
-    if (atomic_load(&web_ifc_log_currentLogLevel) <= LOG_LEVEL_WARN) {
+    if (web_ifc_atomic_load_int(&web_ifc_log_currentLogLevel) <= LOG_LEVEL_WARN) {
         va_list ap;
         va_start(ap, fmt);
         web_ifc_log_vbuild_and_dispatch("WARN: ", fmt, ap);
@@ -309,13 +332,13 @@ static inline void log_warn(const char *fmt, ...) {
 }
 
 static inline void log_vwarn(const char *fmt, va_list ap) {
-    if (atomic_load(&web_ifc_log_currentLogLevel) <= LOG_LEVEL_WARN) {
+    if (web_ifc_atomic_load_int(&web_ifc_log_currentLogLevel) <= LOG_LEVEL_WARN) {
         web_ifc_log_vbuild_and_dispatch("WARN: ", fmt, ap);
     }
 }
 
 static inline void log_error(const char *fmt, ...) {
-    if (atomic_load(&web_ifc_log_currentLogLevel) <= LOG_LEVEL_ERROR) {
+    if (web_ifc_atomic_load_int(&web_ifc_log_currentLogLevel) <= LOG_LEVEL_ERROR) {
         va_list ap;
         va_start(ap, fmt);
         web_ifc_log_vbuild_and_dispatch("ERROR: ", fmt, ap);
@@ -324,7 +347,7 @@ static inline void log_error(const char *fmt, ...) {
 }
 
 static inline void log_verror(const char *fmt, va_list ap) {
-    if (atomic_load(&web_ifc_log_currentLogLevel) <= LOG_LEVEL_ERROR) {
+    if (web_ifc_atomic_load_int(&web_ifc_log_currentLogLevel) <= LOG_LEVEL_ERROR) {
         web_ifc_log_vbuild_and_dispatch("ERROR: ", fmt, ap);
     }
 }
@@ -332,7 +355,7 @@ static inline void log_verror(const char *fmt, va_list ap) {
 /* Force a flush of the underlying streams if no custom sink is           */
 /* registered.  On Android this is a no-op as logcat does not buffer.     */
 static inline void log_flush(void) {
-    if (atomic_load(&web_ifc_log_currentSink) == NULL) {
+    if (web_ifc_atomic_load_sink(&web_ifc_log_currentSink) == NULL) {
         fflush(stdout);
         fflush(stderr);
     }
@@ -341,8 +364,6 @@ static inline void log_flush(void) {
 #endif
 }
 
-#ifdef __cplusplus
-} /* extern "C" */
-#endif
+/* Nothing to close here — implementation uses C++ linkage where appropriate. */
 
 #endif /* WEB_IFC_LOG_H */

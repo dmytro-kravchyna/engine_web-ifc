@@ -481,20 +481,15 @@ static inline uint64_t ms(void) {
 //     DeletedLinesMap deletedLines;
 // } IfcAPI;
 
-/* Main API structure storing library state. */
-typedef struct {
-    int    *model_schema_list;
-    char  **model_schema_name_list;
-    size_t  model_schema_count;
-    int   **deleted_lines;
-    size_t  deleted_lines_count;
-    void   *properties;
-#ifdef __cplusplus
-    webifc::manager::ModelManager* manager;
-#else
-    void* manager;
-#endif
-} IfcAPI;
+/* Main API structure storing library state.
+ *
+ * The concrete definition is intentionally omitted from this C header so
+ * the implementation can use modern C++ containers without exposing them
+ * to C callers.  The type is declared as an incomplete struct; users of
+ * the C API only ever manipulate pointers to `IfcAPI` via the exported
+ * functions (e.g. ifc_api_new/ifc_api_free).
+ */
+typedef struct IfcAPI IfcAPI;
 
 /* Create a new API object.  Memory is allocated with malloc. */
 FFI_EXPORT IfcAPI *ifc_api_new(void);
@@ -1237,9 +1232,9 @@ FFI_EXPORT const char *ifc_api_get_guid_from_express_id(const IfcAPI *api,
  * @param absolute If true, the path is treated as absolute; otherwise it is
  *                 interpreted relative to the executing script.
  */
-FFI_EXPORT void ifc_api_set_wasm_path(IfcAPI *api,
-                          const char *path,
-                          bool absolute);
+// FFI_EXPORT void ifc_api_set_wasm_path(IfcAPI *api,
+//                           const char *path,
+//                           bool absolute);
 
 /**
  * Sets the log level for diagnostic output.
@@ -1248,7 +1243,7 @@ FFI_EXPORT void ifc_api_set_wasm_path(IfcAPI *api,
  * @param level Log level to set.  See the LogLevel enumeration for valid values.
  */
 FFI_EXPORT void ifc_api_set_log_level(IfcAPI *api,
-                          int level);
+                          LogLevel level);
 
 /**
  * Encodes text using IFC encoding.
@@ -1282,7 +1277,7 @@ FFI_EXPORT char *ifc_api_decode_text(const IfcAPI *api,
  *          operation, or NULL on error.  The caller is responsible for
  *          freeing the returned string.
  */
-FFI_EXPORT char *ifc_api_reset_cache(const IfcAPI *api,
+FFI_EXPORT void ifc_api_reset_cache(const IfcAPI *api,
                           int model_id);
 
 
