@@ -51,6 +51,9 @@ static uint32_t expressId = 9989; // an IFCSPACE from the example file
 static uint32_t emptyFileModelID = 0;
 static uint32_t lastExpressId = 14313;
 
+// Directory containing test IFC files (relative to this source file).
+static const char *TEST_IFCFILES_DIR = "../../../tests/ifcfiles";
+
 // Forward declarations for all test functions.  Each name is
 // derived from the corresponding JavaScript test description with
 // spaces and special characters removed.  The ordering matches the
@@ -166,10 +169,11 @@ int main() {
     // omitted if logging is not implemented.
     ifc_api_set_log_level(ifcApi, LOG_LEVEL_OFF);
 
-    // Load the example IFC file relative to this test.  The path
-    // mirrors '../ifcfiles/public/example.ifc' from the TypeScript
-    // tests.  Adjust as needed for your test data layout.
-    ByteArray exampleData = read_ifc_file("../ifcfiles/public/example.ifc");
+    // Load the example IFC file relative to this test using the
+    // TEST_IFCFILES_DIR constant so the path is easy to update.
+    // Mirrors '../ifcfiles/public/example.ifc' from the TypeScript tests.
+    std::string examplePath = std::string(TEST_IFCFILES_DIR) + "/public/example.ifc";
+    ByteArray exampleData = read_ifc_file(examplePath);
     if (exampleData.data == nullptr || exampleData.len == 0) {
         std::cerr << "Could not read example.ifc; tests will be skipped" << std::endl;
     } else {
