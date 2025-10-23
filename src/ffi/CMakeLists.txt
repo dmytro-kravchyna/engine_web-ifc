@@ -1,5 +1,11 @@
-
+include(FetchContent)
+cmake_policy(SET CMP0054 NEW)
 cmake_minimum_required(VERSION 3.20)
+
+# Fetch nlohmann/json for JSON support used by helpers
+Message("Downloading nlohmann/json")
+FetchContent_Declare(nlohmann_json GIT_REPOSITORY "https://github.com/nlohmann/json" GIT_TAG "v3.12.0")
+FetchContent_MakeAvailable(nlohmann_json)
 
 #
 # CMake build for the C FFI layer of the WebIFC library.
@@ -144,6 +150,11 @@ target_include_directories(web_ifc_api
 # satisfy the compilation of web_ifc_api.cpp.
 if(WEBIFC_CPP_TARGET)
   target_link_libraries(web_ifc_api PRIVATE ${WEBIFC_CPP_TARGET})
+endif()
+
+# If FetchContent provided nlohmann_json, link it so headers are available.
+if(TARGET nlohmann_json::nlohmann_json)
+  target_link_libraries(web_ifc_api PRIVATE nlohmann_json::nlohmann_json)
 endif()
 
 # Platform-specific tweaks

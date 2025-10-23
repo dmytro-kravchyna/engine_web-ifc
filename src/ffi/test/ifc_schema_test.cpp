@@ -50,7 +50,7 @@ static void test_schema_name_values(void) {
 // Verify some generated macros exist and have usable values
 static void test_macro_existence(void) {
   // These macros are generated; check they compile and are nonzero where expected
-  ASSERT_TRUE(FILE_SCHEMA != 0, "FILE_SCHEMA == 0");
+  ASSERT_TRUE(webifc::schema::FILE_SCHEMA != 0, "FILE_SCHEMA == 0");
   // Ensure at least one IFC macro exists (IFC2X3 typically present)
   (void)IFC2X3;
   ASSERT_TRUE(1, "IFC2X3 macro referenced");

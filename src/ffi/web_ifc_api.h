@@ -104,32 +104,32 @@ extern "C" {
  */
 typedef struct {
     const bool*     COORDINATE_TO_ORIGIN;            /* If true, translate model to the origin. */
-    const int*      CIRCLE_SEGMENTS;                 /* Segments used to approximate circles. */
-    const uint64_t* MEMORY_LIMIT;                    /* Max memory for IFC data in bytes. */
-    const uint64_t* TAPE_SIZE;                       /* Internal buffer tape size (bytes/units). */
-    const uint32_t* LINEWRITER_BUFFER;               /* Lines to buffer when writing IFC files. */
+    const uint16_t* CIRCLE_SEGMENTS;                 /* Segments used to approximate circles. */
+    const uint32_t* MEMORY_LIMIT;                    /* Max memory for IFC data in bytes. */
+    const uint32_t* TAPE_SIZE;                       /* Internal buffer tape size (bytes/units). */
+    const uint16_t* LINEWRITER_BUFFER;               /* Lines to buffer when writing IFC files. */
     const double*   TOLERANCE_PLANE_INTERSECTION;    /* Tolerance for plane intersection checks. */
     const double*   TOLERANCE_PLANE_DEVIATION;       /* Tolerance to consider a plane on a boundary. */
     const double*   TOLERANCE_BACK_DEVIATION_DISTANCE;/* Threshold to decide front/back of a plane. */
     const double*   TOLERANCE_INSIDE_OUTSIDE_PERIMETER;/* Tolerance for point-in-perimeter tests. */
     const double*   TOLERANCE_SCALAR_EQUALITY;       /* Tolerance for scalar equality comparisons. */
-    const int*      PLANE_REFIT_ITERATIONS;          /* Iterations for refitting triangles to a plane. */
-    const int*      BOOLEAN_UNION_THRESHOLD;         /* Min solids before performing boolean union. */
+    const uint16_t* PLANE_REFIT_ITERATIONS;          /* Iterations for refitting triangles to a plane. */
+    const uint16_t* BOOLEAN_UNION_THRESHOLD;         /* Min solids before performing boolean union. */
 } LoaderSettings;
 
 /* Define default values with uppercase names */
 static const bool     DEFAULT_COORDINATE_TO_ORIGIN              = false;
-static const int      DEFAULT_CIRCLE_SEGMENTS                   = 12;
-static const uint64_t DEFAULT_MEMORY_LIMIT                      = 2147483648ULL;  /* 2 GiB */
-static const uint64_t DEFAULT_TAPE_SIZE                         = 67108864ULL;    /* 64 MiB */
-static const uint32_t DEFAULT_LINEWRITER_BUFFER                 = 10000;
+static const uint16_t DEFAULT_CIRCLE_SEGMENTS                   = 12U;
+static const uint32_t DEFAULT_MEMORY_LIMIT                      = 2147483648U;  /* 2 GiB */
+static const uint32_t DEFAULT_TAPE_SIZE                         = 67108864U;    /* 64 MiB */
+static const uint16_t DEFAULT_LINEWRITER_BUFFER                 = 10000U;
 static const double   DEFAULT_TOLERANCE_PLANE_INTERSECTION      = 1.0e-4;
 static const double   DEFAULT_TOLERANCE_PLANE_DEVIATION         = 1.0e-4;
 static const double   DEFAULT_TOLERANCE_BACK_DEVIATION_DISTANCE = 1.0e-4;
 static const double   DEFAULT_TOLERANCE_INSIDE_OUTSIDE_PERIMETER= 1.0e-10;
 static const double   DEFAULT_TOLERANCE_SCALAR_EQUALITY         = 1.0e-4;
-static const int      DEFAULT_PLANE_REFIT_ITERATIONS            = 1;
-static const int      DEFAULT_BOOLEAN_UNION_THRESHOLD           = 150;
+static const uint16_t DEFAULT_PLANE_REFIT_ITERATIONS            = 1U;
+static const uint16_t DEFAULT_BOOLEAN_UNION_THRESHOLD           = 150U;
 
 typedef struct { double*   data; size_t len; } DoubleArray;
 typedef struct { uint32_t* data; size_t len; } UInt32Array;
@@ -502,80 +502,788 @@ FFI_EXPORT IfcAPI *ifc_api_new(void);
 /* Free an API object and any internal allocations. */
 FFI_EXPORT void ifc_api_free(IfcAPI *api);
 
-/* Initialize the API.  In this stub implementation this always
- * succeeds and returns 0.  A custom locate file handler may be
- * supplied as a pointer (unused here). */
+/**
+ * Initializes the WASM module (WebIFCWasm), required before using any other
+ * functionality.  In this stub implementation the function always
+ * succeeds and returns 0.  A custom locate file handler may be supplied
+ * as a pointer (unused here).
+ *
+ * @param api API context pointer created with ifc_api_new.
+ * @returns 0 on success, non‑zero on failure.
+ */
 FFI_EXPORT int ifc_api_init(IfcAPI *api);
 
-static int find_schema_index(const char* schemaName) {
-  for (size_t i = 0; i < SCHEMA_NAME_ROWS; ++i) {
-    for (size_t j = 0; j < SCHEMA_NAME_INDEX[i].len; ++j) {
-      const char* name = SCHEMA_NAME_DATA[SCHEMA_NAME_INDEX[i].off + j];
-      if (name && strcmp(name, schemaName) == 0) return (int)i;
-    }
-  }
-  return -1;
-}
 
-static inline LoaderSettings ifc_api_create_settings(const LoaderSettings* in) {
-    LoaderSettings s;
-    /* Booleans / ints / doubles all use pointer fields; choose caller’s pointer or default’s address */
-    s.COORDINATE_TO_ORIGIN               = (in && in->COORDINATE_TO_ORIGIN)               ? in->COORDINATE_TO_ORIGIN               : &DEFAULT_COORDINATE_TO_ORIGIN;
-    s.CIRCLE_SEGMENTS                    = (in && in->CIRCLE_SEGMENTS)                    ? in->CIRCLE_SEGMENTS                    : &DEFAULT_CIRCLE_SEGMENTS;
-    s.MEMORY_LIMIT                       = (in && in->MEMORY_LIMIT)                       ? in->MEMORY_LIMIT                       : &DEFAULT_MEMORY_LIMIT;
-    s.TAPE_SIZE                          = (in && in->TAPE_SIZE)                          ? in->TAPE_SIZE                          : &DEFAULT_TAPE_SIZE;
-    s.LINEWRITER_BUFFER                  = (in && in->LINEWRITER_BUFFER)                  ? in->LINEWRITER_BUFFER                  : &DEFAULT_LINEWRITER_BUFFER;
-    s.TOLERANCE_PLANE_INTERSECTION       = (in && in->TOLERANCE_PLANE_INTERSECTION)       ? in->TOLERANCE_PLANE_INTERSECTION       : &DEFAULT_TOLERANCE_PLANE_INTERSECTION;
-    s.TOLERANCE_PLANE_DEVIATION          = (in && in->TOLERANCE_PLANE_DEVIATION)          ? in->TOLERANCE_PLANE_DEVIATION          : &DEFAULT_TOLERANCE_PLANE_DEVIATION;
-    s.TOLERANCE_BACK_DEVIATION_DISTANCE  = (in && in->TOLERANCE_BACK_DEVIATION_DISTANCE)  ? in->TOLERANCE_BACK_DEVIATION_DISTANCE  : &DEFAULT_TOLERANCE_BACK_DEVIATION_DISTANCE;
-    s.TOLERANCE_INSIDE_OUTSIDE_PERIMETER = (in && in->TOLERANCE_INSIDE_OUTSIDE_PERIMETER) ? in->TOLERANCE_INSIDE_OUTSIDE_PERIMETER : &DEFAULT_TOLERANCE_INSIDE_OUTSIDE_PERIMETER;
-    s.TOLERANCE_SCALAR_EQUALITY          = (in && in->TOLERANCE_SCALAR_EQUALITY)          ? in->TOLERANCE_SCALAR_EQUALITY          : &DEFAULT_TOLERANCE_SCALAR_EQUALITY;
-    s.PLANE_REFIT_ITERATIONS             = (in && in->PLANE_REFIT_ITERATIONS)             ? in->PLANE_REFIT_ITERATIONS             : &DEFAULT_PLANE_REFIT_ITERATIONS;
-    s.BOOLEAN_UNION_THRESHOLD            = (in && in->BOOLEAN_UNION_THRESHOLD)            ? in->BOOLEAN_UNION_THRESHOLD            : &DEFAULT_BOOLEAN_UNION_THRESHOLD;
-    return s;
-}
 
-/* Open multiple models from byte buffers.  Returns an array of model
- * IDs allocated with malloc and stores its length in out_count.  The
- * returned array and its contents should be freed by the caller. */
-FFI_EXPORT int *ifc_api_open_models(IfcAPI *api,
-                        const ByteArray* data_sets, /* array of ByteArray */
+/**
+ * Opens a set of models and returns their model IDs.
+ *
+ * @param api          API context pointer created with ifc_api_new.
+ * @param data_sets    Array of ByteArray structures containing IFC data (bytes).
+ * @param num_data_sets Number of items in the data_sets array.
+ * @param settings     Optional loader settings; may be NULL to use defaults.
+ * @param out_count    Output parameter receiving the number of model IDs returned.
+ * @returns A malloc'd array of model IDs.  The caller is responsible for freeing
+ *          the returned array.  If no models could be opened the function
+ *          returns NULL and *out_count is set to zero.
+ */
+FFI_EXPORT uint32_t *ifc_api_open_models(IfcAPI *api,
+                        const ByteArray* data_sets,
                         size_t num_data_sets,
                         const LoaderSettings *settings,
                         size_t *out_count);
 
-/* Open a single model from a buffer.  Returns a model ID on success
- * or -1 on failure. */
-FFI_EXPORT int ifc_api_open_model(IfcAPI *api,
+/**
+ * Opens a model from a single memory buffer and returns a model ID number.
+ *
+ * @param api      API context pointer created with ifc_api_new.
+ * @param data     Buffer containing IFC data (bytes).
+ * @param settings Optional loader settings; may be NULL to use defaults.
+ * @returns ModelID on success or (uint32_t)-1 if the model fails to open.
+ */
+FFI_EXPORT uint32_t ifc_api_open_model(IfcAPI *api,
                         const ByteArray data,
                         const LoaderSettings *settings);
 
-/* Open a model by streaming bytes using a user provided callback. */
+/**
+ * Opens a model by streaming bytes using a user provided callback and
+ * returns a model ID number.
+ *
+ * @param api      API context pointer created with ifc_api_new.
+ * @param callback A function of signature `(offset, size) -> ByteArray` that
+ *                 retrieves IFC data chunks.  The callback is invoked
+ *                 repeatedly until the model is fully read.  The user may
+ *                 pass arbitrary context via load_cb_user_data.
+ * @param load_cb_user_data User supplied pointer passed back to callback.
+ * @param settings Optional loader settings; may be NULL to use defaults.
+ * @returns ModelID on success or -1 if the model fails to open.
+ */
 FFI_EXPORT int ifc_api_open_model_from_callback(IfcAPI *api,
                                       ModelLoadCallback callback,
                                       void *load_cb_user_data,
                                       const LoaderSettings *settings);
 
-/* Retrieve the schema name for a given model ID.  Returns NULL if
- * unknown.  The returned string is owned by the API. */
+/**
+ * Fetches the IFC schema version of a given model.
+ *
+ * @param api      API context pointer created with ifc_api_new.
+ * @param model_id Model ID obtained from open or create calls.
+ * @returns The IFC schema name string.  The returned string is owned by
+ *          the API and must not be freed by the caller.  NULL is
+ *          returned if the schema is unknown.
+ */
 FFI_EXPORT const char *ifc_api_get_model_schema(const IfcAPI *api, int model_id);
 
-/* Create a new model.  Returns a model ID on success or -1 on error. */
+/**
+ * Creates a new model and returns a modelID number.
+ *
+ * @param api      API context pointer created with ifc_api_new.
+ * @param model    Pointer to a NewIfcModel structure describing the new model.
+ * @param settings Optional loader settings; may be NULL to use defaults.
+ * @returns ModelID on success or -1 on error.
+ */
 FFI_EXPORT int ifc_api_create_model(IfcAPI *api,
                           const NewIfcModel *model,
                           const LoaderSettings *settings);
 
-/* Save a model to a contiguous buffer.  Returns a malloc'ed buffer
- * and stores its size in out_size.  The caller must free the buffer. */
+/**
+ * Saves a model to an in‑memory buffer.
+ *
+ * @param api      API context pointer created with ifc_api_new.
+ * @param model_id Model ID to save.
+ * @param out_size Pointer that receives the size of the returned buffer in bytes.
+ * @returns A malloc'd buffer containing the serialized IFC model.  The
+ *          caller is responsible for freeing the returned buffer.  If
+ *          the model could not be saved the function returns NULL and
+ *          *out_size is set to zero.
+ */
 FFI_EXPORT uint8_t *ifc_api_save_model(const IfcAPI *api,
                              int model_id,
                              size_t *out_size);
 
-/* Save a model by streaming bytes via a callback. */
+/**
+ * Saves a model by streaming bytes via a callback.
+ *
+ * @param api      API context pointer created with ifc_api_new.
+ * @param model_id Model ID to save.
+ * @param save_cb  A function that receives blocks of serialized IFC bytes.
+ *                 The callback is invoked repeatedly until the entire
+ *                 model has been output.  User context may be passed
+ *                 through save_cb_user_data.
+ * @param save_cb_user_data User supplied pointer passed back to the callback.
+ */
 FFI_EXPORT void ifc_api_save_model_to_callback(const IfcAPI *api,
                                      int model_id,
                                      ModelSaveCallback save_cb,
                                      void *save_cb_user_data);
+
+/* === Additional API functions mirroring web-ifc-api.ts public methods === */
+
+/**
+ * Retrieves the geometry of an element.
+ *
+ * @param api               API context pointer created with ifc_api_new.
+ * @param model_id          Model handle retrieved by OpenModel.
+ * @param geometryExpressID Express ID of the element whose geometry is requested.
+ * @returns A pointer to an IfcGeometry object containing vertex and index data
+ *          for the element, or NULL on failure.  The caller should invoke
+ *          the destroy function on the returned object when done.
+ */
+FFI_EXPORT IfcGeometry *ifc_api_get_geometry(const IfcAPI *api,
+                                 int model_id,
+                                 int geometryExpressID);
+
+/**
+ * Creates a new axis‑aligned bounding box (AABB) helper object.
+ *
+ * @param api API context pointer created with ifc_api_new.
+ * @returns A pointer to a new AABB object or NULL if creation failed.  The
+ *          returned object exposes GetBuffers and SetValues methods.
+ */
+FFI_EXPORT AABB *ifc_api_create_aabb(IfcAPI *api);
+
+/**
+ * Creates a new extrusion helper object.
+ *
+ * @param api API context pointer created with ifc_api_new.
+ * @returns A pointer to a new Extrusion object or NULL if creation failed.
+ */
+FFI_EXPORT Extrusion *ifc_api_create_extrusion(IfcAPI *api);
+
+/**
+ * Creates a new sweep helper object.
+ *
+ * @param api API context pointer created with ifc_api_new.
+ * @returns A pointer to a new Sweep object or NULL if creation failed.
+ */
+FFI_EXPORT Sweep *ifc_api_create_sweep(IfcAPI *api);
+
+/**
+ * Creates a new circular sweep helper object.
+ *
+ * @param api API context pointer created with ifc_api_new.
+ * @returns A pointer to a new CircularSweep object or NULL if creation failed.
+ */
+FFI_EXPORT CircularSweep *ifc_api_create_circular_sweep(IfcAPI *api);
+
+/**
+ * Creates a new revolution helper object.
+ *
+ * @param api API context pointer created with ifc_api_new.
+ * @returns A pointer to a new Revolution object or NULL if creation failed.
+ */
+FFI_EXPORT Revolution *ifc_api_create_revolution(IfcAPI *api);
+
+/**
+ * Creates a new cylindrical revolution helper object.
+ *
+ * @param api API context pointer created with ifc_api_new.
+ * @returns A pointer to a new CylindricalRevolve object or NULL if creation failed.
+ */
+FFI_EXPORT CylindricalRevolve *ifc_api_create_cylindrical_revolution(IfcAPI *api);
+
+/**
+ * Creates a new parabola helper object.
+ *
+ * @param api API context pointer created with ifc_api_new.
+ * @returns A pointer to a new Parabola object or NULL if creation failed.
+ */
+FFI_EXPORT Parabola *ifc_api_create_parabola(IfcAPI *api);
+
+/**
+ * Creates a new clothoid helper object.
+ *
+ * @param api API context pointer created with ifc_api_new.
+ * @returns A pointer to a new Clothoid object or NULL if creation failed.
+ */
+FFI_EXPORT Clothoid *ifc_api_create_clothoid(IfcAPI *api);
+
+/**
+ * Creates a new arc helper object.
+ *
+ * @param api API context pointer created with ifc_api_new.
+ * @returns A pointer to a new Arc object or NULL if creation failed.
+ */
+FFI_EXPORT Arc *ifc_api_create_arc(IfcAPI *api);
+
+/**
+ * Creates a new alignment helper object.
+ *
+ * @param api API context pointer created with ifc_api_new.
+ * @returns A pointer to a new AlignmentOp object or NULL if creation failed.
+ */
+FFI_EXPORT AlignmentOp *ifc_api_create_alignment(IfcAPI *api);
+
+/**
+ * Creates a new boolean operator helper object.
+ *
+ * @param api API context pointer created with ifc_api_new.
+ * @returns A pointer to a new BooleanOperator object or NULL if creation failed.
+ */
+FFI_EXPORT BooleanOperator *ifc_api_create_boolean_operator(IfcAPI *api);
+
+/**
+ * Creates a new profile section helper object.
+ *
+ * @param api API context pointer created with ifc_api_new.
+ * @returns A pointer to a new ProfileSection object or NULL if creation failed.
+ */
+FFI_EXPORT ProfileSection *ifc_api_create_profile(IfcAPI *api);
+
+/**
+ * Gets the header information required by the user.
+ *
+ * @param api        API context pointer created with ifc_api_new.
+ * @param model_id   Model handle retrieved by OpenModel.
+ * @param headerType Type of header data you want to retrieve (e.g. FILE_NAME,
+ *                   FILE_DESCRIPTION or FILE_SCHEMA).
+ * @returns A RawLineData structure with parameters ID, type and arguments.  On
+ *          failure the returned structure will have ID set to zero and
+ *          arguments_len equal to zero.
+ */
+FFI_EXPORT RawLineData ifc_api_get_header_line(const IfcAPI *api,
+                                   int model_id,
+                                   int headerType);
+
+/**
+ * Gets the list of all IFC types contained in the model.
+ *
+ * @param api      API context pointer created with ifc_api_new.
+ * @param model_id Model handle retrieved by OpenModel.
+ * @param out_count Output parameter that will receive the number of types returned.
+ * @returns An array of IfcType objects allocated with malloc.  The caller is
+ *          responsible for freeing the returned array and any nested
+ *          allocations.  If no types are available the function returns
+ *          NULL and sets *out_count to zero.
+ */
+FFI_EXPORT IfcType *ifc_api_get_all_types_of_model(const IfcAPI *api,
+                                       int model_id,
+                                       size_t *out_count);
+
+/**
+ * Gets the IFC line data for a given express ID.
+ *
+ * @param api       API context pointer created with ifc_api_new.
+ * @param model_id  Model handle retrieved by OpenModel.
+ * @param expressID Express ID of the line.
+ * @param flatten   If true, recursively flatten the line (default false).
+ * @param inverse   If true, retrieve the inverse properties of the line (default false).
+ * @param inversePropKey Optional key used to filter inverse properties for performance; may be NULL.
+ * @returns A pointer to an opaque line object representing the IFC line.  The
+ *          caller must cast or interpret the returned pointer according to
+ *          their own data structures.  NULL is returned on error.
+ */
+FFI_EXPORT void *ifc_api_get_line(const IfcAPI *api,
+                        int model_id,
+                        int expressID,
+                        bool flatten,
+                        bool inverse,
+                        const char *inversePropKey);
+
+/**
+ * Gets the IFC line data for a list of express IDs.
+ *
+ * @param api         API context pointer created with ifc_api_new.
+ * @param model_id    Model handle retrieved by OpenModel.
+ * @param expressIDs  Array of express IDs.
+ * @param num_ids     Number of elements in the expressIDs array.
+ * @param flatten     If true, recursively flatten the lines (default false).
+ * @param inverse     If true, retrieve the inverse properties of the lines (default false).
+ * @param inversePropKey Optional key used to filter inverse properties for performance; may be NULL.
+ * @param out_count   Output parameter that will receive the number of line objects returned.
+ * @returns An array of opaque pointers representing IFC line objects.  The
+ *          caller is responsible for freeing the returned array.  If no
+ *          lines are returned the function returns NULL and sets *out_count
+ *          to zero.
+ */
+FFI_EXPORT void **ifc_api_get_lines(const IfcAPI *api,
+                          int model_id,
+                          const int *expressIDs,
+                          size_t num_ids,
+                          bool flatten,
+                          bool inverse,
+                          const char *inversePropKey,
+                          size_t *out_count);
+
+/**
+ * Gets the next unused express ID starting from the specified value.
+ *
+ * @param api       API context pointer created with ifc_api_new.
+ * @param model_id  Model handle retrieved by OpenModel.
+ * @param expressID Starting express ID value.
+ * @returns The next unused express ID starting from the value provided.
+ */
+FFI_EXPORT int ifc_api_get_next_express_id(const IfcAPI *api,
+                                 int model_id,
+                                 int expressID);
+
+/**
+ * Creates a new IFC entity of the specified type.
+ *
+ * @param api      API context pointer created with ifc_api_new.
+ * @param model_id Model handle retrieved by OpenModel.
+ * @param type     IFC type code.
+ * @param args     Opaque pointer to an array of arguments required by the entity.
+ *                 The meaning and number of arguments depend on the IFC type and
+ *                 are left to the caller.  This pointer may be NULL if no
+ *                 arguments are provided.
+ * @returns A pointer to an opaque IFC line object representing the new entity,
+ *          or NULL on error.
+ */
+FFI_EXPORT void *ifc_api_create_ifc_entity(IfcAPI *api,
+                               int model_id,
+                               int type,
+                               void *args);
+
+/**
+ * Creates a new IFC globally unique ID.
+ *
+ * @param api      API context pointer created with ifc_api_new.
+ * @param model_id Model handle retrieved by OpenModel.
+ * @returns A newly generated globally unique ID string, or NULL on error.
+ *          The returned string is malloc'd and must be freed by the caller.
+ */
+FFI_EXPORT char *ifc_api_create_ifc_globally_unique_id(IfcAPI *api,
+                                           int model_id);
+
+/**
+ * Creates a new IFC type, such as IfcLabel or IfcReal.
+ *
+ * @param api      API context pointer created with ifc_api_new.
+ * @param model_id Model handle retrieved by OpenModel.
+ * @param type     IFC type code.
+ * @param value    Pointer to the value to assign to the type.  The caller is
+ *                 responsible for ensuring that the value has the correct
+ *                 representation for the specified type.
+ * @returns A pointer to an opaque IFC type object, or NULL on error.
+ */
+FFI_EXPORT void *ifc_api_create_ifc_type(IfcAPI *api,
+                             int model_id,
+                             int type,
+                             const void *value);
+
+/**
+ * Gets the name corresponding to a type code.
+ *
+ * @param api  API context pointer created with ifc_api_new.
+ * @param type IFC type code.
+ * @returns The name associated with the type code.  The returned string is
+ *          owned by the API and must not be freed by the caller.  NULL is
+ *          returned if the name could not be found.
+ */
+FFI_EXPORT const char *ifc_api_get_name_from_type_code(const IfcAPI *api,
+                                            int type);
+
+/**
+ * Gets the type code from a type name.
+ *
+ * @param api       API context pointer created with ifc_api_new.
+ * @param type_name UTF‑8 string containing the type name.
+ * @returns The type code corresponding to the name, or 0 if not found.
+ */
+FFI_EXPORT int ifc_api_get_type_code_from_name(const IfcAPI *api,
+                                   const char *type_name);
+
+/**
+ * Evaluates whether a type is a subtype of IfcElement.
+ *
+ * @param api  API context pointer created with ifc_api_new.
+ * @param type IFC type code.
+ * @returns true if the type is a subtype of IfcElement; false otherwise.
+ */
+FFI_EXPORT bool ifc_api_is_ifc_element(const IfcAPI *api,
+                           int type);
+
+/**
+ * Returns a list with all entity types that are present in the current schema.
+ *
+ * @param api      API context pointer created with ifc_api_new.
+ * @param model_id Model handle retrieved by OpenModel.
+ * @param out_count Output parameter receiving the number of type codes returned.
+ * @returns An array of type codes (integers).  The caller is responsible for
+ *          freeing the returned array.  If no types are present the
+ *          function returns NULL and sets *out_count to zero.
+ */
+FFI_EXPORT int *ifc_api_get_ifc_entity_list(const IfcAPI *api,
+                                 int model_id,
+                                 size_t *out_count);
+
+/**
+ * Deletes an IFC line from the model.
+ *
+ * @param api       API context pointer created with ifc_api_new.
+ * @param model_id  Model handle retrieved by OpenModel.
+ * @param expressID Express ID of the line to remove.
+ */
+FFI_EXPORT void ifc_api_delete_line(IfcAPI *api,
+                         int model_id,
+                         int expressID);
+
+/**
+ * Writes a set of lines to the model, which can be used to write new lines
+ * or to update existing lines.
+ *
+ * @param api       API context pointer created with ifc_api_new.
+ * @param model_id  Model handle retrieved by OpenModel.
+ * @param line_objects Array of pointers to opaque line objects to write.
+ * @param num_lines Number of objects in the line_objects array.
+ */
+FFI_EXPORT void ifc_api_write_lines(IfcAPI *api,
+                          int model_id,
+                          void **line_objects,
+                          size_t num_lines);
+
+/**
+ * Writes a single line to the model.  This can be used to write a new line
+ * or update an existing line.
+ *
+ * @param api      API context pointer created with ifc_api_new.
+ * @param model_id Model handle retrieved by OpenModel.
+ * @param line_object Pointer to an opaque line object to write.
+ */
+FFI_EXPORT void ifc_api_write_line(IfcAPI *api,
+                         int model_id,
+                         void *line_object);
+
+/**
+ * Get all line IDs of a specific IFC type.
+ *
+ * @param api              API context pointer created with ifc_api_new.
+ * @param model_id         Model handle retrieved by OpenModel.
+ * @param type             IFC type code.
+ * @param includeInherited If true, also returns all inherited types (default false).
+ * @param out_count        Output parameter receiving the number of line IDs returned.
+ * @returns An array of line IDs (integers).  The caller is responsible for
+ *          freeing the returned array.  If no IDs are found the function
+ *          returns NULL and sets *out_count to zero.
+ */
+FFI_EXPORT int *ifc_api_get_line_ids_with_type(const IfcAPI *api,
+                                     int model_id,
+                                     int type,
+                                     bool includeInherited,
+                                     size_t *out_count);
+
+/**
+ * Get all line IDs of a model.
+ *
+ * @param api      API context pointer created with ifc_api_new.
+ * @param model_id Model handle retrieved by OpenModel.
+ * @param out_count Output parameter receiving the number of line IDs returned.
+ * @returns An array of all line IDs (integers).  The caller is responsible
+ *          for freeing the returned array.  If no IDs are found the function
+ *          returns NULL and sets *out_count to zero.
+ */
+FFI_EXPORT int *ifc_api_get_all_lines(const IfcAPI *api,
+                          int model_id,
+                          size_t *out_count);
+
+/**
+ * Returns all cross sections in 2D contained in IFCSECTIONEDSOLID,
+ * IFCSECTIONEDSURFACE or IFCSECTIONEDSOLIDHORIZONTAL (IFC4x3 or superior).
+ *
+ * @param api      API context pointer created with ifc_api_new.
+ * @param model_id Model handle retrieved by OpenModel.
+ * @param out_count Output parameter receiving the number of cross sections returned.
+ * @returns An array of CrossSection structures.  The caller is responsible
+ *          for freeing the returned array and any nested allocations.  If no
+ *          cross sections are available the function returns NULL and sets
+ *          *out_count to zero.
+ */
+FFI_EXPORT CrossSection *ifc_api_get_all_cross_sections_2d(const IfcAPI *api,
+                                              int model_id,
+                                              size_t *out_count);
+
+/**
+ * Returns all cross sections in 3D contained in IFCSECTIONEDSOLID,
+ * IFCSECTIONEDSURFACE or IFCSECTIONEDSOLIDHORIZONTAL (IFC4x3 or superior).
+ *
+ * @param api      API context pointer created with ifc_api_new.
+ * @param model_id Model handle retrieved by OpenModel.
+ * @param out_count Output parameter receiving the number of cross sections returned.
+ * @returns An array of CrossSection structures representing 3D curves.
+ *          The caller is responsible for freeing the returned array and any
+ *          nested allocations.  If no cross sections are available the function
+ *          returns NULL and sets *out_count to zero.
+ */
+FFI_EXPORT CrossSection *ifc_api_get_all_cross_sections_3d(const IfcAPI *api,
+                                              int model_id,
+                                              size_t *out_count);
+
+/**
+ * Returns all alignments contained in the IFC model (IFC4x3 or superior).
+ *
+ * @param api      API context pointer created with ifc_api_new.
+ * @param model_id Model handle retrieved by OpenModel.
+ * @param out_count Output parameter receiving the number of alignments returned.
+ * @returns An array of AlignmentData structures.  The caller is responsible
+ *          for freeing the returned array and any nested allocations.  If no
+ *          alignments are available the function returns NULL and sets
+ *          *out_count to zero.
+ */
+FFI_EXPORT AlignmentData *ifc_api_get_all_alignments(const IfcAPI *api,
+                                        int model_id,
+                                        size_t *out_count);
+
+/**
+ * Sets the transformation matrix for geometry.
+ *
+ * @param api                 API context pointer created with ifc_api_new.
+ * @param model_id            Model handle retrieved by OpenModel.
+ * @param transformationMatrix Flat 4x4 matrix as an array of 16 numbers.  The
+ *                             array must have length 16.  If an invalid
+ *                             length is provided the function has no effect.
+ */
+FFI_EXPORT void ifc_api_set_geometry_transformation(IfcAPI *api,
+                                       int model_id,
+                                       const double *transformationMatrix);
+
+/**
+ * Gets the coordination matrix for a model.
+ *
+ * @param api      API context pointer created with ifc_api_new.
+ * @param model_id Model handle retrieved by OpenModel.
+ * @param out_len  Output parameter receiving the length of the returned array
+ *                 (normally 16).  May be NULL.
+ * @returns A malloc'd array of numbers representing the flat 4x4
+ *          coordination matrix.  The caller is responsible for freeing
+ *          the returned array.  If the matrix cannot be retrieved the
+ *          function returns NULL and sets *out_len to zero.
+ */
+FFI_EXPORT double *ifc_api_get_coordination_matrix(const IfcAPI *api,
+                                        int model_id,
+                                        size_t *out_len);
+
+/**
+ * Closes a model and frees all related memory.
+ *
+ * @param api      API context pointer created with ifc_api_new.
+ * @param model_id Model handle retrieved by OpenModel.  The model must be
+ *                 closed after use.
+ */
+FFI_EXPORT void ifc_api_close_model(IfcAPI *api,
+                        int model_id);
+
+/**
+ * Closes all models and frees all related memory.  Please note that after
+ * calling this you must call ifc_api_init() again to ensure web-ifc is in
+ * a working state.
+ *
+ * @param api API context pointer created with ifc_api_new.
+ */
+FFI_EXPORT void ifc_api_dispose(IfcAPI *api);
+
+/**
+ * Streams meshes of a model with specific express IDs.
+ *
+ * @param api         API context pointer created with ifc_api_new.
+ * @param model_id    Model handle retrieved by OpenModel.
+ * @param expressIDs  Array of express IDs whose meshes should be streamed.
+ * @param num_ids     Number of elements in the expressIDs array.
+ * @param mesh_cb     Callback function invoked for each mesh.  The callback
+ *                    receives a pointer to a FlatMesh, the index of the mesh
+ *                    within the stream, the total number of meshes, and the
+ *                    user_data pointer supplied here.
+ * @param user_data   User supplied pointer passed back to the callback.
+ */
+typedef void (*IfcMeshCallback)(const FlatMesh* mesh, size_t index, size_t total, void *user_data);
+FFI_EXPORT void ifc_api_stream_meshes(const IfcAPI *api,
+                          int model_id,
+                          const int *expressIDs,
+                          size_t num_ids,
+                          IfcMeshCallback mesh_cb,
+                          void *user_data);
+
+/**
+ * Streams all meshes of a model.
+ *
+ * @param api       API context pointer created with ifc_api_new.
+ * @param model_id  Model handle retrieved by OpenModel.
+ * @param mesh_cb   Callback function invoked for each mesh.  The callback
+ *                  receives a pointer to a FlatMesh, the index of the mesh
+ *                  within the stream, the total number of meshes, and the
+ *                  user_data pointer supplied here.
+ * @param user_data User supplied pointer passed back to the callback.
+ */
+FFI_EXPORT void ifc_api_stream_all_meshes(const IfcAPI *api,
+                              int model_id,
+                              IfcMeshCallback mesh_cb,
+                              void *user_data);
+
+/**
+ * Streams all meshes of a model with a specific set of IFC types.
+ *
+ * @param api       API context pointer created with ifc_api_new.
+ * @param model_id  Model handle retrieved by OpenModel.
+ * @param types     Array of IFC type codes to stream.
+ * @param num_types Number of elements in the types array.
+ * @param mesh_cb   Callback function invoked for each mesh.  The callback
+ *                  receives a pointer to a FlatMesh, the index of the mesh
+ *                  within the stream, the total number of meshes, and the
+ *                  user_data pointer supplied here.
+ * @param user_data User supplied pointer passed back to the callback.
+ */
+FFI_EXPORT void ifc_api_stream_all_meshes_with_types(const IfcAPI *api,
+                                         int model_id,
+                                         const int *types,
+                                         size_t num_types,
+                                         IfcMeshCallback mesh_cb,
+                                         void *user_data);
+
+/**
+ * Checks if a specific model ID is open.
+ *
+ * @param api      API context pointer created with ifc_api_new.
+ * @param model_id Model handle retrieved by OpenModel.
+ * @returns true if the model is open; false if it is closed.
+ */
+FFI_EXPORT bool ifc_api_is_model_open(const IfcAPI *api,
+                          int model_id);
+
+/**
+ * Loads all geometry in a model.
+ *
+ * @param api       API context pointer created with ifc_api_new.
+ * @param model_id  Model handle retrieved by OpenModel.
+ * @param out_count Output parameter receiving the number of FlatMesh objects returned.
+ * @returns An array of pointers to FlatMesh objects.  The caller is responsible
+ *          for freeing the returned array.  Each FlatMesh must be destroyed
+ *          via its destroy member when no longer needed.  If no geometry is
+ *          loaded the function returns NULL and sets *out_count to zero.
+ */
+FFI_EXPORT FlatMesh **ifc_api_load_all_geometry(const IfcAPI *api,
+                                   int model_id,
+                                   size_t *out_count);
+
+/**
+ * Loads geometry for a single element.
+ *
+ * @param api       API context pointer created with ifc_api_new.
+ * @param model_id  Model handle retrieved by OpenModel.
+ * @param expressID Express ID of the element.
+ * @returns A pointer to a FlatMesh object or NULL on error.  The caller
+ *          should destroy the returned object via its destroy member when
+ *          finished.
+ */
+FFI_EXPORT FlatMesh *ifc_api_get_flat_mesh(const IfcAPI *api,
+                               int model_id,
+                               int expressID);
+
+/**
+ * Returns the maximum ExpressID value in the IFC file (e.g. #9999999).
+ *
+ * @param api      API context pointer created with ifc_api_new.
+ * @param model_id Model handle retrieved by OpenModel.
+ * @returns The maximum express ID value.
+ */
+FFI_EXPORT int ifc_api_get_max_express_id(const IfcAPI *api,
+                              int model_id);
+
+/**
+ * Returns the IFC type of a given entity in the file.
+ *
+ * @param api       API context pointer created with ifc_api_new.
+ * @param model_id  Model handle retrieved by OpenModel.
+ * @param expressID Express ID of the line.
+ * @returns IFC type code for the line, or 0 if unknown.
+ */
+FFI_EXPORT int ifc_api_get_line_type(const IfcAPI *api,
+                          int model_id,
+                          int expressID);
+
+/**
+ * Returns the version number of web-ifc.
+ *
+ * @param api API context pointer created with ifc_api_new.
+ * @returns The current version number as a NULL‑terminated UTF‑8 string.  The
+ *          returned string is owned by the API and must not be freed by
+ *          the caller.
+ */
+FFI_EXPORT const char *ifc_api_get_version(const IfcAPI *api);
+
+/**
+ * Looks up an entity's express ID from its GlobalID.
+ *
+ * @param api      API context pointer created with ifc_api_new.
+ * @param model_id Model handle retrieved by OpenModel.
+ * @param guid     UTF‑8 string containing the GlobalID to look up.
+ * @returns The express ID corresponding to the given GlobalID, or 0 if not
+ *          found.
+ */
+FFI_EXPORT int ifc_api_get_express_id_from_guid(const IfcAPI *api,
+                                     int model_id,
+                                     const char *guid);
+
+/**
+ * Looks up an entity's GlobalID from its ExpressID.
+ *
+ * @param api       API context pointer created with ifc_api_new.
+ * @param model_id  Model handle retrieved by OpenModel.
+ * @param expressID Express ID to look up.
+ * @returns The GlobalID string associated with the express ID, or NULL if not
+ *          found.  The returned string is owned by the API and must not be
+ *          freed by the caller.
+ */
+FFI_EXPORT const char *ifc_api_get_guid_from_express_id(const IfcAPI *api,
+                                            int model_id,
+                                            int expressID);
+
+/**
+ * Sets the path to the wasm file used by the underlying WebIFCWasm module.
+ *
+ * @param api      API context pointer created with ifc_api_new.
+ * @param path     UTF‑8 string containing the new wasm path.  The string is
+ *                 copied internally and may be freed by the caller after the
+ *                 call returns.
+ * @param absolute If true, the path is treated as absolute; otherwise it is
+ *                 interpreted relative to the executing script.
+ */
+FFI_EXPORT void ifc_api_set_wasm_path(IfcAPI *api,
+                          const char *path,
+                          bool absolute);
+
+/**
+ * Sets the log level for diagnostic output.
+ *
+ * @param api   API context pointer created with ifc_api_new.
+ * @param level Log level to set.  See the LogLevel enumeration for valid values.
+ */
+FFI_EXPORT void ifc_api_set_log_level(IfcAPI *api,
+                          int level);
+
+/**
+ * Encodes text using IFC encoding.
+ *
+ * @param api  API context pointer created with ifc_api_new.
+ * @param text NULL‑terminated UTF‑8 string to encode.
+ * @returns A newly allocated string containing the encoded text, or NULL on error.
+ *          The caller is responsible for freeing the returned string.
+ */
+FFI_EXPORT char *ifc_api_encode_text(const IfcAPI *api,
+                          const char *text);
+
+/**
+ * Decodes text using IFC encoding.
+ *
+ * @param api  API context pointer created with ifc_api_new.
+ * @param text NULL‑terminated UTF‑8 string to decode.
+ * @returns A newly allocated string containing the decoded text, or NULL on error.
+ *          The caller is responsible for freeing the returned string.
+ */
+FFI_EXPORT char *ifc_api_decode_text(const IfcAPI *api,
+                          const char *text);
+
+/**
+ * Resets the cached IFC data for a model – useful when changing the geometry
+ * of a model.
+ *
+ * @param api      API context pointer created with ifc_api_new.
+ * @param model_id Model handle retrieved by OpenModel.
+ * @returns A newly allocated string returned from the underlying decode
+ *          operation, or NULL on error.  The caller is responsible for
+ *          freeing the returned string.
+ */
+FFI_EXPORT char *ifc_api_reset_cache(const IfcAPI *api,
+                          int model_id);
 
 
 #ifdef __cplusplus
