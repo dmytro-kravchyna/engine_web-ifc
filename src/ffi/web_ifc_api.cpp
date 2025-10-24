@@ -226,12 +226,10 @@ extern "C" FFI_EXPORT int32_t ifc_api_open_model(IfcAPI *api,
 
   api->deleted_lines[modelID] = {};
 
-  json arguments = GetArgs(api->manager, modelID);
-
   // Read FILE_SCHEMA header to determine schema name. The helper returns a RawLineData
   auto header = get_header_line(api, modelID, (uint32_t)webifc::schema::FILE_SCHEMA);
   json args = header["arguments"];
-  std::string schemaName = args.array().at(0).at(0)["value"];
+  std::string schemaName = args[0][0]["value"];
 
   auto schema_id = lookup_schema_id(schemaName.c_str());
   api->model_schema_list[modelID] = schema_id;
@@ -274,7 +272,7 @@ extern "C" FFI_EXPORT int32_t ifc_api_open_model_from_callback(IfcAPI *api,
 
   auto header = get_header_line(api, modelID, (uint32_t)webifc::schema::FILE_SCHEMA);
   json args = header["arguments"];
-  std::string schemaName = args.array().at(0).at(0)["value"];
+  std::string schemaName = args[0][0]["value"];
 
   auto schema_id = lookup_schema_id(schemaName.c_str());
   api->model_schema_list[modelID] = schema_id;

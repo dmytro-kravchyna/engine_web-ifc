@@ -11,7 +11,7 @@
 // a TODO comment.  Implementors are encouraged to fill in these
 // stubs once the necessary C functions are available.
 
-#include "web_ifc_api.h"
+#include "../web_ifc_api.h"
 
 #include <cassert>
 #include <cstddef>
@@ -21,6 +21,7 @@
 #include <iostream>
 #include <string>
 #include <vector>
+#include <filesystem>
 
 // Helper to read an IFC file from disk into a ByteArray.  This
 // allocates memory with malloc; callers should free the ByteArray
@@ -42,6 +43,61 @@ static ByteArray read_ifc_file(const std::string &path) {
     return result;
 }
 
+// Resolve the directory containing test IFC files. This tries:
+// 1) Environment variable TEST_IFCFILES_DIR
+// 2) A path relative to the current working directory
+// 3) A path relative to this source file location (../../../../ relative hops)
+// 4) Common alternative layouts used in builds
+static std::string resolve_test_ifcfiles_dir() {
+    namespace fs = std::filesystem;
+
+    // 1) Environment override
+    if (const char* env = std::getenv("TEST_IFCFILES_DIR")) {
+        fs::path p(env);
+        if (fs::exists(p) && fs::is_directory(p)) {
+            return p.string();
+        }
+    }
+
+    // 2) Relative to current working directory
+    {
+        fs::path p = fs::path("tests") / "ifcfiles";
+        if (fs::exists(p) && fs::is_directory(p)) {
+            return fs::canonical(p).string();
+        }
+    }
+
+    // 3) Relative to this source file location
+    // __FILE__ is the path to this file at compile time.
+    {
+        fs::path src(__FILE__);
+        fs::path base = src.parent_path();
+        // Try ../../../tests/ifcfiles relative to this file (as originally intended)
+        fs::path p = base / "../../../tests/ifcfiles";
+        std::error_code ec;
+        fs::path canon = fs::weakly_canonical(p, ec);
+        if (!ec && fs::exists(canon) && fs::is_directory(canon)) {
+            return canon.string();
+        }
+        // Alternative common locations
+        std::vector<fs::path> candidates = {
+            base / "../../tests/ifcfiles",
+            base / "../tests/ifcfiles",
+            base / "tests/ifcfiles",
+        };
+        for (const auto& c : candidates) {
+            std::error_code ec2;
+            fs::path cc = fs::weakly_canonical(c, ec2);
+            if (!ec2 && fs::exists(cc) && fs::is_directory(cc)) {
+                return cc.string();
+            }
+        }
+    }
+
+    // 4) Fallback to original constant path if nothing else worked
+    return std::string("../../../tests/ifcfiles");
+}
+
 // Global variables analogous to those defined at the top of the
 // TypeScript test suite.  These are populated in main() during
 // initialisation and reused across tests as needed.
@@ -50,9 +106,6 @@ static uint32_t modelID = 0;
 static uint32_t expressId = 9989; // an IFCSPACE from the example file
 static uint32_t emptyFileModelID = 0;
 static uint32_t lastExpressId = 14313;
-
-// Directory containing test IFC files (relative to this source file).
-static const char *TEST_IFCFILES_DIR = "../../../tests/ifcfiles";
 
 // Forward declarations for all test functions.  Each name is
 // derived from the corresponding JavaScript test description with
@@ -172,7 +225,9 @@ int main() {
     // Load the example IFC file relative to this test using the
     // TEST_IFCFILES_DIR constant so the path is easy to update.
     // Mirrors '../ifcfiles/public/example.ifc' from the TypeScript tests.
-    std::string examplePath = std::string(TEST_IFCFILES_DIR) + "/public/example.ifc";
+    std::string ifcDir = resolve_test_ifcfiles_dir();
+    std::string examplePath = (std::filesystem::path(ifcDir) / "public" / "example.ifc").string();
+    std::cout << "Attempting to load IFC from: " << examplePath << std::endl;
     ByteArray exampleData = read_ifc_file(examplePath);
     if (exampleData.data == nullptr || exampleData.len == 0) {
         std::cerr << "Could not read example.ifc; tests will be skipped" << std::endl;

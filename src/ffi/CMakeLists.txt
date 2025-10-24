@@ -306,12 +306,33 @@ if(BUILD_TESTING)
   # ALL here, the run_tests target becomes part of the default build,
   # ensuring that tests execute automatically after the test binaries
   # have been built.
-  add_custom_target(run_tests ALL
-    COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
-    DEPENDS ${TEST_TARGETS}
-    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-    COMMENT "Running unit tests"
-  )
+  # Create a custom target that runs all tests. For single-configuration
+  # generators (Unix Makefiles, Ninja) we can call ctest directly. For
+  # multi-configuration generators (Xcode, Visual Studio) ctest must be
+  # invoked with a configuration using `-C <config>`. We use a conditional
+  # to select the appropriate command so that building the Xcode project
+  # will run the tests for the active configuration (e.g. Debug).
+  if(CMAKE_CONFIGURATION_TYPES)
+    # For multi-config generators (Xcode, Visual Studio) do not make
+    # `run_tests` part of the default build. Users can invoke the
+    # `run_tests` target from their IDE when they want to execute the
+    # test suite for a particular configuration.
+    add_custom_target(run_tests
+      COMMAND ${CMAKE_CTEST_COMMAND} -C $<CONFIG> --output-on-failure
+      DEPENDS ${TEST_TARGETS}
+      WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+      COMMENT "Run unit tests for the active configuration"
+    )
+  else()
+    # For single-config generators keep the ALL property so tests run
+    # as part of the default build.
+    add_custom_target(run_tests ALL
+      COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
+      DEPENDS ${TEST_TARGETS}
+      WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+      COMMENT "Running unit tests"
+    )
+  endif()
 endif()
 
 # -----------------------------------------------------------------------------
