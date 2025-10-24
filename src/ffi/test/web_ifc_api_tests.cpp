@@ -106,6 +106,7 @@ static uint32_t modelID = 0;
 static uint32_t expressId = 9989; // an IFCSPACE from the example file
 static uint32_t emptyFileModelID = 0;
 static uint32_t lastExpressId = 14313;
+static size_t totalLineNumber = 6488;
 
 // Forward declarations for all test functions.  Each name is
 // derived from the corresponding JavaScript test description with
@@ -117,21 +118,21 @@ static void test_can_ensure_model_is_open();
 static void test_can_return_the_correct_number_of_line_with_a_given_Type();
 static void test_can_return_the_correct_number_of_line_when_getting_all_lines();
 static void test_can_return_the_correct_number_of_line_when_getting_all_lines_and_iterate_over_them();
-static void test_can_GetLine();
+static void test_can_get_line();
 static void test_can_flatten_a_line_which_will_be_more_verbose();
 static void test_can_generate_a_guid();
 static void test_expect_the_correct_line_to_be_returned();
 static void test_expect_the_correct_lines_to_be_returned();
-static void test_IFC_Address_Parsing();
+static void test_ifc_address_parsing();
 static void test_expect_getting_flatten_line_return_verbose_line();
-static void test_can_Get_Raw_Line();
+static void test_can_get_raw_line();
 static void test_expect_the_correct_raw_line_to_be_returned();
 static void test_can_read_MAC_ROMAN_Characters();
-static void test_can_Create_Ifc_Guid_To_Express_Id_Map();
+static void test_can_create_ifc_guid_to_express_id_map();
 static void test_can_return_the_next_highest_expressID_if_the_ID_is_sequential();
 static void test_can_return_the_next_highest_expressID_if_the_ID_is_not_sequential();
 static void test_returns_next_expressID_if_it_is_the_max_ID();
-static void test_Can_get_max_expressID();
+static void test_can_get_max_expressID();
 static void test_can_use_the_guid_to_expressID_map();
 static void test_Can_get_header_information();
 static void test_can_get_name_for_type_code();
@@ -253,21 +254,21 @@ int main() {
     test_can_return_the_correct_number_of_line_with_a_given_Type();
     test_can_return_the_correct_number_of_line_when_getting_all_lines();
     test_can_return_the_correct_number_of_line_when_getting_all_lines_and_iterate_over_them();
-    test_can_GetLine();
+    test_can_get_line();
     test_can_flatten_a_line_which_will_be_more_verbose();
     test_can_generate_a_guid();
     test_expect_the_correct_line_to_be_returned();
     test_expect_the_correct_lines_to_be_returned();
-    test_IFC_Address_Parsing();
+    test_ifc_address_parsing();
     test_expect_getting_flatten_line_return_verbose_line();
-    test_can_Get_Raw_Line();
+    test_can_get_raw_line();
     test_expect_the_correct_raw_line_to_be_returned();
     test_can_read_MAC_ROMAN_Characters();
-    test_can_Create_Ifc_Guid_To_Express_Id_Map();
+    test_can_create_ifc_guid_to_express_id_map();
     test_can_return_the_next_highest_expressID_if_the_ID_is_sequential();
     test_can_return_the_next_highest_expressID_if_the_ID_is_not_sequential();
     test_returns_next_expressID_if_it_is_the_max_ID();
-    test_Can_get_max_expressID();
+    test_can_get_max_expressID();
     test_can_use_the_guid_to_expressID_map();
     test_Can_get_header_information();
     test_can_get_name_for_type_code();
@@ -344,20 +345,11 @@ int main() {
 // harness status.
 
 static void test_can_retrieve_a_modelID() {
-    // test('can retrieve a modelID')
-    // can retrieve a modelID
-    // In the JS tests the modelID of the first opened model is
-    // expected to be 0.  Here we simply compare the modelID we
-    // obtained during initialisation against zero.
     bool passed = (modelID == 0);
     report(__func__, passed);
 }
 
 static void test_can_ensure_model_is_open() {
-    // test('can ensure model is open')
-    // can ensure model is open
-    // Calls ifc_api_is_model_open to verify the model is currently
-    // open.  A return value of true indicates success.
     bool isOpen = false;
     if (ifcApi && modelID != (uint32_t)-1) {
         isOpen = ifc_api_is_model_open(ifcApi, modelID);
@@ -369,36 +361,45 @@ static void test_can_return_the_correct_number_of_line_with_a_given_Type() {
     // test('can return the correct number of line with a given Type')
     // can return the correct number of line with a given Type
     // TODO: Mapping of GetLineIDsWithType is not present in the C API.
-    report(__func__, true);
+    report(__func__, false);
 }
 
+/* can return the correct number of line when getting all lines */
 static void test_can_return_the_correct_number_of_line_when_getting_all_lines() {
-    // test('can return the correct number of line when getting all lines')
-    // can return the correct number of line when getting all lines
-    // TODO: ifc_api_get_all_lines is not yet implemented in this header.
-    report(__func__, true);
+    uint32_t *out = nullptr;
+    size_t len;
+    auto allLines = ifc_api_get_all_lines(ifcApi, modelID, &out, &len);
+    std::free(out);
+    report(__func__, len == totalLineNumber && allLines == totalLineNumber * sizeof(uint32_t));
 }
 
 static void test_can_return_the_correct_number_of_line_when_getting_all_lines_and_iterate_over_them() {
-    // test('can return the correct number of line when getting all lines and iterate over them')
-    // can return the correct number of line when getting all lines and iterate over them
-    // TODO: Iteration over lines is not available in the C API stub.
-    report(__func__, true);
+    uint32_t *out = nullptr;
+    size_t len;
+    auto allLines = ifc_api_get_all_lines(ifcApi, modelID, &out, &len);
+    size_t iter_count = 0;
+    for (size_t i = 0; i < len; ++i) {
+        uint32_t lineId = out[i];
+        (void)lineId;
+        ++iter_count;
+    }
+    std::free(out);
+    report(__func__, iter_count == totalLineNumber);
 }
 
-static void test_can_GetLine() {
+static void test_can_get_line() {
     // test('can GetLine')
     // can GetLine
     // TODO: The C API returns an opaque void* from ifc_api_get_line.
     // Without a schema mapping for the returned type this test cannot be performed.
-    report(__func__, true);
+    report(__func__, false);
 }
 
 static void test_can_flatten_a_line_which_will_be_more_verbose() {
     // test('can flatten a line which will be more verbose')
     // can flatten a line which will be more verbose
     // TODO: Flattening lines is not exposed in the C API stub.
-    report(__func__, true);
+    report(__func__, false);
 }
 
 static void test_can_generate_a_guid() {
@@ -414,84 +415,77 @@ static void test_expect_the_correct_line_to_be_returned() {
     // test('expect the correct line to be returned')
     // expect the correct line to be returned
     // TODO: Requires interpretation of void* returned by ifc_api_get_line.
-    report(__func__, true);
+    report(__func__, false);
 }
 
 static void test_expect_the_correct_lines_to_be_returned() {
     // test('expect the correct lines to be returned')
     // expect the correct lines to be returned
     // TODO: Requires ifc_api_get_lines and parsing of multiple opaque line objects.
-    report(__func__, true);
+    report(__func__, false);
 }
 
-static void test_IFC_Address_Parsing() {
+static void test_ifc_address_parsing() {
     // test('IFC Address Parsing')
     // IFC Address Parsing
     // TODO: Address parsing logic is not exposed in C API.
-    report(__func__, true);
+    report(__func__, false);
 }
 
 static void test_expect_getting_flatten_line_return_verbose_line() {
     // test('expect getting flatten line return verbose line')
     // expect getting flatten line return verbose line
     // TODO: FlattenLine functionality is not in C API.
-    report(__func__, true);
+    report(__func__, false);
 }
 
-static void test_can_Get_Raw_Line() {
+static void test_can_get_raw_line() {
+    // auto res = ifc_api_get_raw_line_data(ifcApi, modelID, expressId);
     // test('can Get Raw Line')
     // can Get Raw Line
     // TODO: ifc_api_get_raw_line_data equivalent not yet implemented; use placeholder.
-    report(__func__, true);
+    report(__func__, false);
 }
 
 static void test_expect_the_correct_raw_line_to_be_returned() {
     // test('expect the correct raw line to be returned')
     // expect the correct raw line to be returned
     // TODO: Would compare RawLineData.ID; currently not implemented.
-    report(__func__, true);
+    report(__func__, false);
 }
 
 static void test_can_read_MAC_ROMAN_Characters() {
     // test('can read MAC ROMAN Characters')
     // can read MAC ROMAN Characters
     // TODO: Requires interpretation of RawLineData.arguments and proper encoding handling.
-    report(__func__, true);
+    report(__func__, false);
 }
 
-static void test_can_Create_Ifc_Guid_To_Express_Id_Map() {
+static void test_can_create_ifc_guid_to_express_id_map() {
     // test('can Create Ifc Guid To Express Id Map')
     // can Create Ifc Guid To Express Id Map
     // TODO: Guid map functionality is not exposed in C API stub.
-    report(__func__, true);
+    report(__func__, false);
 }
 
 static void test_can_return_the_next_highest_expressID_if_the_ID_is_sequential() {
-    // test('can return the next highest expressID if the ID is sequential')
-    // can return the next highest expressID if the ID is sequential
-    // TODO: ifc_api_get_next_express_id exists; should be called with sequential ID and compare result.
-    report(__func__, true);
+    auto result = ifc_api_get_next_express_id(ifcApi, modelID, 5);
+    report(__func__, result == 6);
 }
 
 static void test_can_return_the_next_highest_expressID_if_the_ID_is_not_sequential() {
-    // test('can return the next highest expressID if the ID is not sequential')
-    // can return the next highest expressID if the ID is not sequential
-    // TODO: Use ifc_api_get_next_express_id; requires knowledge of file structure.
-    report(__func__, true);
+    auto result = ifc_api_get_next_express_id(ifcApi, modelID, 9);
+    report(__func__, result == 11);
 }
 
 static void test_returns_next_expressID_if_it_is_the_max_ID() {
-    // test('returns next expressID if it is the max ID')
-    // returns next expressID if it is the max ID
-    // TODO: Use ifc_api_get_next_express_id; requires maxExpressId context.
-    report(__func__, true);
+    auto result = ifc_api_get_next_express_id(ifcApi, modelID, 14312);
+    report(__func__, result == 14313);
 }
 
-static void test_Can_get_max_expressID() {
-    // test('Can get max expressID')
-    // Can get max expressID
-    // TODO: Call ifc_api_get_max_express_id and compare against lastExpressId.
-    report(__func__, true);
+static void test_can_get_max_expressID() {
+    auto maxExpressId = ifc_api_get_max_express_id(ifcApi, modelID);
+    report(__func__, maxExpressId == lastExpressId);
 }
 
 static void test_can_use_the_guid_to_expressID_map() {

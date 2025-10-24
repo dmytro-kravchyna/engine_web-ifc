@@ -110,7 +110,6 @@ static inline int lookup_schema_id(const char *schemaName)
   return -1;
 }
 
-
 static inline json get_header_line(const IfcAPI *api,
                                    uint32_t model_id,
                                    uint32_t headerType)
@@ -183,7 +182,7 @@ extern "C" FFI_EXPORT size_t ifc_api_open_models(IfcAPI *api,
                                                  const ByteArray *data_sets,
                                                  size_t num_data_sets,
                                                  const LoaderSettings *settings,
-                                                 uint32_t *out)
+                                                 uint32_t **out)
 {
   if (!api || !api->manager || !data_sets || num_data_sets == 0)
     return 0;
@@ -200,7 +199,7 @@ extern "C" FFI_EXPORT size_t ifc_api_open_models(IfcAPI *api,
     auto modelID = ifc_api_open_model(api, data, &s);
     modelIDs.push_back(modelID);
   }
-  return ffi_strdup(modelIDs, out);
+  return ffi_vecdup(modelIDs, out);
 }
 
 /* Opens a single model from a buffer (stub). */
@@ -290,7 +289,7 @@ extern "C" FFI_EXPORT int32_t ifc_api_open_model_from_callback(IfcAPI *api,
 /* Retrieves the schema name for a model (stub). */
 extern "C" FFI_EXPORT size_t ifc_api_get_model_schema(const IfcAPI *api,
                                                       uint32_t model_id,
-                                                      char *out)
+                                                      char **out)
 {
   if (!api || !api->manager)
     return 0;
@@ -575,7 +574,7 @@ extern "C" FFI_EXPORT void *ifc_api_create_ifc_type(IfcAPI *api,
 /* Gets the name from a type code (stub). */
 extern "C" FFI_EXPORT size_t ifc_api_get_name_from_type_code(const IfcAPI *api,
                                                              uint32_t type,
-                                                             char *out)
+                                                             char **out)
 {
   if (!api || !api->manager)
     return NULL;
@@ -662,15 +661,18 @@ extern "C" FFI_EXPORT int *ifc_api_get_line_ids_with_type(const IfcAPI *api,
 /* Gets all line IDs of a model (stub). */
 extern "C" FFI_EXPORT size_t ifc_api_get_all_lines(const IfcAPI *api,
                                                    uint32_t model_id,
-                                                   uint32_t *out)
+                                                   uint32_t **out,
+                                                   size_t *len)
 {
+  if (len) *len = 0;
   if (!api || !api->manager)
     return 0;
   if (!api->manager->IsModelOpen(model_id))
     return 0;
 
   std::vector<uint32_t> lineIds = api->manager->GetIfcLoader(model_id)->GetAllLines();
-  return ffi_strdup(lineIds, out);
+  if (len) *len = lineIds.size();
+  return ffi_vecdup(lineIds, out);
 }
 
 /* Gets all 2D cross sections (stub). */
@@ -721,14 +723,14 @@ extern "C" FFI_EXPORT void ifc_api_set_geometry_transformation(IfcAPI *api,
 /* Gets the coordination matrix (stub). */
 extern "C" FFI_EXPORT size_t ifc_api_get_coordination_matrix(const IfcAPI *api,
                                                              uint32_t model_id,
-                                                             double *out)
+                                                             double **out)
 {
   if (!api || !api->manager)
     return 0;
   if (!api->manager->IsModelOpen(model_id))
     return 0;
   std::array<double, 16> arr = api->manager->GetGeometryProcessor(model_id)->GetFlatCoordinationMatrix();
-  return ffi_strdup(arr, out);
+  return ffi_arrdup(arr, out);
 }
 
 /* Closes a model (stub). */
@@ -848,7 +850,8 @@ extern "C" FFI_EXPORT uint32_t ifc_api_get_line_type(const IfcAPI *api,
 }
 
 /* Gets the version of web-ifc (stub). */
-extern "C" FFI_EXPORT size_t ifc_api_get_version(const IfcAPI *api, char *out)
+extern "C" FFI_EXPORT size_t ifc_api_get_version(const IfcAPI *api,
+                                                 char **out)
 {
   return ffi_strdup(WEB_IFC_VERSION_NUMBER, out);
 }
@@ -983,7 +986,7 @@ extern "C" FFI_EXPORT void ifc_api_set_log_level(IfcAPI *api,
 /* Encodes text using IFC encoding (stub). */
 extern "C" FFI_EXPORT size_t ifc_api_encode_text(const IfcAPI *api,
                                                  const char *text,
-                                                 char *out)
+                                                 char **out)
 {
   if (!api || !text)
     return 0;
@@ -998,7 +1001,7 @@ extern "C" FFI_EXPORT size_t ifc_api_encode_text(const IfcAPI *api,
 /* Decodes text using IFC encoding (stub). */
 extern "C" FFI_EXPORT size_t ifc_api_decode_text(const IfcAPI *api,
                                                  const char *text,
-                                                 char *out)
+                                                 char **out)
 {
   if (!api || !text)
     return 0;

@@ -112,7 +112,7 @@ extern "C"
     {
         const bool *COORDINATE_TO_ORIGIN;                 /* If true, translate model to the origin. */
         const uint16_t *CIRCLE_SEGMENTS;                  /* Segments used to approximate circles. */
-        uint32_t *MEMORY_LIMIT;                     /* Max memory for IFC data in bytes. */
+        uint32_t *MEMORY_LIMIT;                           /* Max memory for IFC data in bytes. */
         const uint32_t *TAPE_SIZE;                        /* Internal buffer tape size (bytes/units). */
         const uint16_t *LINEWRITER_BUFFER;                /* Lines to buffer when writing IFC files. */
         const double *TOLERANCE_PLANE_INTERSECTION;       /* Tolerance for plane intersection checks. */
@@ -168,7 +168,7 @@ extern "C"
     {
         uint32_t ID;
         uint32_t type;
-        const char* arguments;
+        const char *arguments;
         size_t arguments_len;
     } RawLineData;
 
@@ -570,6 +570,11 @@ extern "C"
      */
     typedef struct IfcAPI IfcAPI;
 
+//    /*  Free function with C ABI (easier to bind from other languages). */
+//    FFI_EXPORT inline void ffi_free(void *p) noexcept {
+//        std::free(p);
+//    }
+
     /* Create a new API object.  Memory is allocated with malloc. */
     FFI_EXPORT IfcAPI *ifc_api_new(void);
 
@@ -611,7 +616,7 @@ extern "C"
                                           const ByteArray *data_sets,
                                           size_t num_data_sets,
                                           const LoaderSettings *settings,
-                                          uint32_t *out);
+                                          uint32_t **out);
 
     /**
      * Opens a model from a single memory buffer and returns a model ID number.
@@ -662,7 +667,7 @@ extern "C"
      */
     FFI_EXPORT size_t ifc_api_get_model_schema(const IfcAPI *api,
                                                uint32_t model_id,
-                                               char *out);
+                                               char **out);
 
     /**
      * Creates a new model and returns a modelID number.
@@ -968,7 +973,7 @@ extern "C"
      */
     FFI_EXPORT size_t ifc_api_get_name_from_type_code(const IfcAPI *api,
                                                       uint32_t type,
-                                                      char *out);
+                                                      char **out);
 
     /**
      * Gets the type code from a type name.
@@ -1072,20 +1077,25 @@ extern "C"
     /**
      * Gets all line IDs of a model.
      *
-     * Writes the list of line IDs into the caller-supplied buffer `out` as
-     * 32-bit signed integers. If `out` is NULL the function returns the
-     * number of bytes required to hold the list (preflight). On success the
-     * function returns the number of bytes written. The out_count parameter
-     * receives the number of elements (not bytes) when non-NULL.
+    * Writes the list of line IDs into the caller-supplied buffer `out` as
+    * 32-bit unsigned integers. If `out` is NULL the function returns the
+    * number of bytes required to hold the list (preflight). On success the
+    * function returns the number of bytes written. The `len` output
+    * parameter (if non-NULL) receives the number of elements written into
+    * the `out` array (i.e. the array size, not the number of bytes).
      *
      * @param api      API context pointer created with ifc_api_new.
      * @param model_id Model handle retrieved by OpenModel.
-     * @param out      Caller-supplied buffer to receive the int array, or NULL for preflight.
-     * @returns Number of bytes written or required; zero on error.
+    * @param out      Caller-supplied buffer to receive the uint32_t array, or NULL for preflight.
+    * @param len      Output parameter that will receive the number of elements written into `out` (array length). May be NULL.
+    * @returns Number of bytes written or required; zero on error. Note: the
+    *          returned value is the byte count; use `len` to obtain the
+    *          number of array elements.
      */
     FFI_EXPORT size_t ifc_api_get_all_lines(const IfcAPI *api,
-                                            uint32_t model_id,
-                                            uint32_t *out);
+                                    uint32_t model_id,
+                                    uint32_t **out,
+                                    size_t *len);
 
     /**
      * Returns all cross sections in 2D contained in IFCSECTIONEDSOLID,
@@ -1165,7 +1175,7 @@ extern "C"
      */
     FFI_EXPORT size_t ifc_api_get_coordination_matrix(const IfcAPI *api,
                                                       uint32_t model_id,
-                                                      double *out);
+                                                      double **out);
 
     /**
      * Closes a model and frees all related memory.
@@ -1316,7 +1326,7 @@ extern "C"
      * @param out Caller-supplied buffer to receive the version string, or NULL.
      * @returns Number of bytes written or required; zero on error.
      */
-    FFI_EXPORT size_t ifc_api_get_version(const IfcAPI *api, char *out);
+    FFI_EXPORT size_t ifc_api_get_version(const IfcAPI *api, char **out);
 
     /**
      * Looks up an entity's express ID from its GlobalID.
@@ -1383,7 +1393,7 @@ extern "C"
      */
     FFI_EXPORT size_t ifc_api_encode_text(const IfcAPI *api,
                                           const char *text,
-                                          char *out);
+                                          char **out);
 
     /**
      * Decodes text using IFC encoding.
@@ -1400,7 +1410,7 @@ extern "C"
      */
     FFI_EXPORT size_t ifc_api_decode_text(const IfcAPI *api,
                                           const char *text,
-                                          char *out);
+                                          char **out);
 
     /**
      * Resets the cached IFC data for a model – useful when changing the geometry
