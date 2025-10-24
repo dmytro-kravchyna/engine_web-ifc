@@ -242,8 +242,45 @@ if(BUILD_TESTING)
       ${CMAKE_CURRENT_LIST_DIR}
       ${CMAKE_CURRENT_LIST_DIR}/helpers
     )
+    # If the sibling C++ project (or FetchContent in the top-level CMake)
+    # provided GLM via FetchContent, expose its include directory so tests
+    # that include <glm/glm.hpp> can find it.
+    if(DEFINED glm_SOURCE_DIR)
+      target_include_directories(${tgt_name} PRIVATE ${glm_SOURCE_DIR} ${glm_SOURCE_DIR}/glm)
+    endif()
     # Link tests to the C API library
     target_link_libraries(${tgt_name} PRIVATE web_ifc_api)
+    # If we have a sibling C++ implementation target, link it too so
+    # public include directories (glm, tinynurbs, etc.) are available
+    # to the test binaries.
+    if(WEBIFC_CPP_TARGET)
+      if(TARGET ${WEBIFC_CPP_TARGET})
+        target_link_libraries(${tgt_name} PRIVATE ${WEBIFC_CPP_TARGET})
+      endif()
+    endif()
+    # Link against Catch2 if available (provide testing framework)
+    # Try to find an installed Catch2 first, otherwise FetchContent will
+    # download it so the tests can build.  We link Catch2WithMain so each
+    # test executable gets a main() provided by Catch2.
+    if(NOT TARGET Catch2::Catch2WithMain)
+      find_package(Catch2 3 QUIET)
+      if(NOT Catch2_FOUND)
+        message(STATUS "Catch2 not found; fetching Catch2 for unit tests")
+        include(FetchContent)
+        FetchContent_Declare(Catch2
+          GIT_REPOSITORY https://github.com/catchorg/Catch2.git
+          GIT_TAG v3.11.0
+        )
+        FetchContent_MakeAvailable(Catch2)
+      endif()
+    endif()
+    if(TARGET Catch2::Catch2WithMain)
+      target_link_libraries(${tgt_name} PRIVATE Catch2::Catch2WithMain)
+    endif()
+    # Ensure nlohmann/json headers are available to tests that include them
+    if(TARGET nlohmann_json::nlohmann_json)
+      target_link_libraries(${tgt_name} PRIVATE nlohmann_json::nlohmann_json)
+    endif()
     # Use strict warnings for tests
     if(MSVC)
       target_compile_options(${tgt_name} PRIVATE /utf-8)
