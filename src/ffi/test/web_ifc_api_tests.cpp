@@ -384,7 +384,7 @@ static void test_can_return_the_correct_number_of_line_when_getting_all_lines_an
         ++iter_count;
     }
     std::free(out);
-    report(__func__, iter_count == totalLineNumber);
+    report(__func__, iter_count == totalLineNumber && allLines == totalLineNumber * sizeof(uint32_t));
 }
 
 static void test_can_get_line() {
@@ -489,32 +489,75 @@ static void test_can_get_max_expressID() {
 }
 
 static void test_can_use_the_guid_to_expressID_map() {
-    // test('can use the guid->expressID map')
-    // can use the guid->expressID map
-    // TODO: Guid mapping functions exist but require proper GUID strings from file.
-    report(__func__, true);
+    // const char *expected_guid = "39ashYNBDEDR$HhFzW6w9a";
+    // // Lookup express ID from GUID
+    // int eid = ifc_api_get_express_id_from_guid(ifcApi, modelID, expected_guid);
+    // bool ok1 = (eid == 138);
+    // // Lookup GUID from express ID
+    // const char *got_guid = ifc_api_get_guid_from_express_id(ifcApi, modelID, 138);
+    // bool ok2 = (got_guid != NULL) && (std::string(got_guid) == std::string(expected_guid));
+    // report(__func__, ok1 && ok2);
+    report(__func__, false);
 }
 
 static void test_Can_get_header_information() {
     // test('Can get header information')
     // Can get header information
-    // TODO: Should call ifc_api_get_header_line with headerType constants
-    // (e.g. FILE_DESCRIPTION, FILE_NAME, FILE_SCHEMA) once defined.
-    report(__func__, true);
+   const char *expectedFileDescription = "ViewDefinition [CoordinationView_V2.0]";
+   const char *expectedFileName = "3458";
+   const char *expectedFileSchema = "IFC2X3";
+
+    char *out_type = nullptr; size_t out_type_len = 0;
+    char *out_arguments = nullptr; size_t out_arguments_len = 0;
+    auto descriptionLine = ifc_api_get_header_line(ifcApi,
+                                                    modelID,
+                                                    webifc::schema::FILE_DESCRIPTION,
+                                                    &out_type,
+                                                    &out_type_len,
+                                                    &out_arguments,
+                                                    &out_arguments_len);
+//    auto nameLine = ifc_api_get_header_line(ifcApi, modelID, webifc::schema::FILE_NAME);
+//    auto schemaLine = ifc_api_get_header_line(ifcApi, modelID, webifc::schema::FILE_SCHEMA);
+
+//    bool ok = true;
+//    ok &= (descriptionLine.type == webifc::schema::FILE_DESCRIPTION);
+//    ok &= (descriptionLine.arguments_len > 1);
+//    std::string descArgs = descriptionLine.arguments ? std::string(descriptionLine.arguments) : std::string();
+//    ok &= (descArgs.find(expectedFileDescription) != std::string::npos);
+//
+//    ok &= (nameLine.type == webifc::schema::FILE_NAME);
+//    ok &= (nameLine.arguments_len == 7);
+//    std::string nameArgs = nameLine.arguments ? std::string(nameLine.arguments) : std::string();
+//    ok &= (nameArgs.find(expectedFileName) != std::string::npos);
+//
+//    ok &= (schemaLine.type == webifc::schema::FILE_SCHEMA);
+//    ok &= (schemaLine.arguments_len == 1);
+//    std::string schemaArgs = schemaLine.arguments ? std::string(schemaLine.arguments) : std::string();
+//    ok &= (schemaArgs.find(expectedFileSchema) != std::string::npos);
+//
+//    report(__func__, ok);
+    bool ok = true;
+    ok &= (descriptionLine != 0);
+    ok &= (out_arguments != nullptr);
+    std::string descArgs = out_arguments ? std::string(out_arguments) : std::string();
+    ok &= (descArgs.find(expectedFileDescription) != std::string::npos);
+    if (out_type) free(out_type);
+    if (out_arguments) free(out_arguments);
+    report(__func__, ok);
 }
 
 static void test_can_get_name_for_type_code() {
     // test('can get name for type code')
     // can get name for type code
     // TODO: ifc_api_get_name_from_type_code can be used; requires type codes.
-    report(__func__, true);
+    report(__func__, false);
 }
 
 static void test_can_check_if_is_ifcelement() {
     // test('can check if is ifcelement')
     // can check if is ifcelement
     // TODO: ifc_api_is_ifc_element can be tested once type codes are known.
-    report(__func__, true);
+    report(__func__, false);
 }
 
 static void test_can_return_the_correct_number_geometries() {

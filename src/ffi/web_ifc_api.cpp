@@ -477,16 +477,32 @@ extern "C" FFI_EXPORT ProfileSection *ifc_api_create_profile(IfcAPI *api)
 }
 
 /* Gets header line data (stub). */
-extern "C" FFI_EXPORT RawLineData ifc_api_get_header_line(const IfcAPI *api,
-                                                          uint32_t model_id,
-                                                          uint32_t headerType)
+extern "C" FFI_EXPORT uint32_t ifc_api_get_header_line(const IfcAPI *api,
+                                                       uint32_t model_id,
+                                                       uint32_t headerType,
+                                                       char **out_type,
+                                                       size_t *out_type_len,
+                                                       char **out_arguments,
+                                                       size_t *out_arguments_len)
 {
-  auto retVal = get_header_line(api, model_id, headerType);
-  return RawLineData{
-      .ID = retVal["ID"].get<uint32_t>(),
-      .type = retVal["type"].get<uint32_t>(),
-      .arguments = retVal["arguments"].dump().c_str(),
-      .arguments_len = retVal["arguments"].size()};
+  if (out_type_len)
+    *out_type_len = 0;
+  if (out_arguments_len)
+    *out_arguments_len = 0;
+
+  json retVal = get_header_line(api, model_id, headerType);
+  uint32_t id = retVal["ID"];
+  std::string type = retVal["type"];
+  ffi_strdup(type, out_type);
+
+  if (out_type_len)
+    *out_type_len = type.size();
+  std::string arguments = retVal["arguments"].dump();
+  ffi_strdup(arguments, out_arguments);
+  if (out_arguments_len)
+    *out_arguments_len = arguments.size();
+
+  return id;
 }
 
 /* Gets all types of a model (stub). */
@@ -664,14 +680,16 @@ extern "C" FFI_EXPORT size_t ifc_api_get_all_lines(const IfcAPI *api,
                                                    uint32_t **out,
                                                    size_t *len)
 {
-  if (len) *len = 0;
+  if (len)
+    *len = 0;
   if (!api || !api->manager)
     return 0;
   if (!api->manager->IsModelOpen(model_id))
     return 0;
 
   std::vector<uint32_t> lineIds = api->manager->GetIfcLoader(model_id)->GetAllLines();
-  if (len) *len = lineIds.size();
+  if (len)
+    *len = lineIds.size();
   return ffi_vecdup(lineIds, out);
 }
 

@@ -570,10 +570,10 @@ extern "C"
      */
     typedef struct IfcAPI IfcAPI;
 
-//    /*  Free function with C ABI (easier to bind from other languages). */
-//    FFI_EXPORT inline void ffi_free(void *p) noexcept {
-//        std::free(p);
-//    }
+    //    /*  Free function with C ABI (easier to bind from other languages). */
+    //    FFI_EXPORT inline void ffi_free(void *p) noexcept {
+    //        std::free(p);
+    //    }
 
     /* Create a new API object.  Memory is allocated with malloc. */
     FFI_EXPORT IfcAPI *ifc_api_new(void);
@@ -828,17 +828,43 @@ extern "C"
     /**
      * Gets the header information required by the user.
      *
-     * @param api        API context pointer created with ifc_api_new.
-     * @param model_id   Model handle retrieved by OpenModel.
-     * @param headerType Type of header data you want to retrieve (e.g. FILE_NAME,
-     *                   FILE_DESCRIPTION or FILE_SCHEMA).
-     * @returns A RawLineData structure with parameters ID, type and arguments.  On
-     *          failure the returned structure will have ID set to zero and
-     *          arguments_len equal to zero.
+     * This function returns the header line's express ID as its return value.
+     * The textual type (e.g. "FILE_NAME") and the JSON-dumped arguments
+     * are returned through the out-parameters. Both output strings are
+     * allocated with malloc by the implementation and MUST be freed by the
+     * caller using free() when no longer required.
+     *
+     * Example usage:
+     *   char *type = NULL; size_t type_len = 0;
+     *   char *arguments = NULL; size_t args_len = 0;
+     *   uint32_t id = ifc_api_get_header_line(api, model_id, FILE_NAME,
+     *                                        &type, &type_len, &arguments, &args_len);
+     *   // use type/arguments (NUL-terminated)
+     *   free(type); free(arguments);
+     *
+     * @param api               API context pointer created with ifc_api_new.
+     * @param model_id          Model handle retrieved by OpenModel.
+     * @param headerType        Type of header data to retrieve (e.g. FILE_NAME,
+     *                          FILE_DESCRIPTION or FILE_SCHEMA).
+     * @param out_type          Receives a NUL-terminated UTF-8 string with the type
+     *                          name (allocated with malloc). May be NULL.
+     * @param out_type_len      Receives the byte length of the returned type string
+     *                          (excluding the terminating NUL). May be NULL.
+     * @param out_arguments     Receives a NUL-terminated UTF-8 string containing the
+     *                          JSON-dumped arguments for the header line (allocated
+     *                          with malloc). May be NULL.
+     * @param out_arguments_len Receives the byte length of the returned arguments
+     *                          string (excluding the terminating NUL). May be NULL.
+     * @returns The express ID (uint32_t) of the header line on success, or zero on
+     *          failure or if the requested header is not present.
      */
-    FFI_EXPORT RawLineData ifc_api_get_header_line(const IfcAPI *api,
-                                                   uint32_t model_id,
-                                                   uint32_t headerType);
+    extern "C" FFI_EXPORT uint32_t ifc_api_get_header_line(const IfcAPI *api,
+                                                           uint32_t model_id,
+                                                           uint32_t headerType,
+                                                           char **out_type,
+                                                           size_t *out_type_len,
+                                                           char **out_arguments,
+                                                           size_t *out_arguments_len);
 
     /**
      * Gets the list of all IFC types contained in the model.
@@ -1077,25 +1103,25 @@ extern "C"
     /**
      * Gets all line IDs of a model.
      *
-    * Writes the list of line IDs into the caller-supplied buffer `out` as
-    * 32-bit unsigned integers. If `out` is NULL the function returns the
-    * number of bytes required to hold the list (preflight). On success the
-    * function returns the number of bytes written. The `len` output
-    * parameter (if non-NULL) receives the number of elements written into
-    * the `out` array (i.e. the array size, not the number of bytes).
+     * Writes the list of line IDs into the caller-supplied buffer `out` as
+     * 32-bit unsigned integers. If `out` is NULL the function returns the
+     * number of bytes required to hold the list (preflight). On success the
+     * function returns the number of bytes written. The `len` output
+     * parameter (if non-NULL) receives the number of elements written into
+     * the `out` array (i.e. the array size, not the number of bytes).
      *
      * @param api      API context pointer created with ifc_api_new.
      * @param model_id Model handle retrieved by OpenModel.
-    * @param out      Caller-supplied buffer to receive the uint32_t array, or NULL for preflight.
-    * @param len      Output parameter that will receive the number of elements written into `out` (array length). May be NULL.
-    * @returns Number of bytes written or required; zero on error. Note: the
-    *          returned value is the byte count; use `len` to obtain the
-    *          number of array elements.
+     * @param out      Caller-supplied buffer to receive the uint32_t array, or NULL for preflight.
+     * @param len      Output parameter that will receive the number of elements written into `out` (array length). May be NULL.
+     * @returns Number of bytes written or required; zero on error. Note: the
+     *          returned value is the byte count; use `len` to obtain the
+     *          number of array elements.
      */
     FFI_EXPORT size_t ifc_api_get_all_lines(const IfcAPI *api,
-                                    uint32_t model_id,
-                                    uint32_t **out,
-                                    size_t *len);
+                                            uint32_t model_id,
+                                            uint32_t **out,
+                                            size_t *len);
 
     /**
      * Returns all cross sections in 2D contained in IFCSECTIONEDSOLID,
