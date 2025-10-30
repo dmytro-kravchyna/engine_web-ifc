@@ -496,13 +496,14 @@ export class IfcAPI {
     this.deletedLines.set(result, new Set());
     var schemaName = this.GetHeaderLine(result, FILE_SCHEMA).arguments[0][0]
       .value;
-    this.modelSchemaList[result] = this.LookupSchemaId(schemaName);
-    this.modelSchemaNameList[result] = schemaName;
-    if (this.modelSchemaList[result] == -1) {
+    let id = this.LookupSchemaId(schemaName);
+    if (id == -1) {
       Log.error("Unsupported Schema:" + schemaName);
       this.CloseModel(result);
       return -1;
     }
+    this.modelSchemaList[result] = id;
+    this.modelSchemaNameList[result] = schemaName;
     Log.debug("Parsing Model using " + schemaName + " Schema");
     return result;
   }
@@ -687,7 +688,7 @@ export class IfcAPI {
   }
 
   CreateBooleanOperator() {
-    return this.wasmModule.CreateBooleanOperator();
+    return this.wasmModule.CreateBoolean();
   }
 
   CreateProfile() {
